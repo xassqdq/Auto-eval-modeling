@@ -351,6 +351,7 @@ def resolve_columns(
     """
     校验配置中的列名是否存在于 DataFrame 中，
     若不匹配则尝试自动推断并打印警告。
+    自动推断时只选取可转为数值的列。
 
     Returns
     -------
@@ -362,19 +363,28 @@ def resolve_columns(
 
     actual_cols = df.columns.tolist()
 
-    # 检查 object_col
+    # ---------- 检查 object_col ----------
     if object_col not in actual_cols:
         logger.warning("对象列 '%s' 在数据中不存在，自动使用第一列 '%s'",
                        object_col, actual_cols[0])
         object_col = actual_cols[0]
 
-    # 检查 indicator_cols
+    # ---------- 检查 indicator_cols ----------
     missing = [c for c in indicator_cols if c not in actual_cols]
     if missing:
         logger.warning("以下指标列在数据中不存在: %s", missing)
         logger.info("数据实际列名: %s", actual_cols)
-        # 自动推断：除对象列外全部作为指标
-        indicator_cols = [c for c in actual_cols if c != object_col]
+
+        # ★ 自动推断：除对象列外，只保留"至少有一个值可转为数字"的列
+        candidate_cols = [c for c in actual_cols if c != object_col]
+        indicator_cols = []
+        for c in candidate_cols:
+            converted = pd.to_numeric(df[c], errors="coerce")
+            if converted.notna().any():          # 至少有一个数值
+                indicator_cols.append(c)
+            else:
+                logger.debug("  列 '%s' 全为非数值，跳过", c)
+
         directions = [1] * len(indicator_cols)
         logger.warning("已自动切换为: 对象列='%s', 指标列=%s (全部正向)",
                        object_col, indicator_cols)
@@ -510,7 +520,34 @@ def cmd_run(args: argparse.Namespace) -> None:
     # 列名校验与自动修正
     object_col, indicator_cols, directions = resolve_columns(df, cfg)
     objects: List[str] = df[object_col].astype(str).tolist()
-    X_raw: np.ndarray = df[indicator_cols].values.astype(float)
+
+    # ── 数值安全转换 ──────────────────────────────────────────────────
+    # 将指标列强制转为数值型，无法转换的单元格变为 NaN
+    numeric_df = df[indicator_cols].apply(pd.to_numeric, errors="coerce")
+
+    # 移除完全非数值的列（文本/分类列被误选为指标的情况）
+    all_nan_mask = numeric_df.isnull().all()
+    if all_nan_mask.any():
+        bad_cols = numeric_df.columns[all_nan_mask].tolist()
+        logger.warning("以下列全为非数值数据，已自动排除: %s", bad_cols)
+        keep_flags = (~all_nan_mask).tolist()
+        indicator_cols = [c for c, k in zip(indicator_cols, keep_flags) if k]
+        directions    = [d for d, k in zip(directions, keep_flags) if k]
+        numeric_df    = numeric_df.loc[:, ~all_nan_mask]
+
+    if len(indicator_cols) == 0:
+        logger.error("没有可用的数值型指标列，流程终止")
+        return
+
+    # 统计因类型转换而新增的 NaN（将在预处理阶段用均值填充）
+    coerced_nan_count = int(numeric_df.isnull().sum().sum())
+    if coerced_nan_count > 0:
+        logger.warning(
+            "指标数据中有 %d 个单元格无法转为数值，已置为 NaN（后续自动填充）",
+            coerced_nan_count,
+        )
+
+    X_raw: np.ndarray = numeric_df.values.astype(float)
 
     # ── 阶段 2: 预处理 ───────────────────────────────────────────────────
     logger.info("[阶段2] 数据预处理...")

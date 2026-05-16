@@ -1,0 +1,74 @@
+%% ============================================================
+%% 模糊综合评价段落模板
+%% 变量:
+%%   n_criteria         — 指标数量
+%%   criteria_names     — 指标名称列表
+%%   grade_names        — 评语等级列表 (如 ["优","良","中","差"])
+%%   n_grades           — 等级数量
+%%   weights            — 权重向量
+%%   weights_source     — 权重来源说明
+%%   R_matrix           — 模糊评价矩阵 (二维列表)
+%%   B_vector           — 综合评价向量
+%%   final_grade        — 最终评价等级
+%%   membership_fig_path — 隶属度分布图路径 (可选)
+%% ============================================================
+
+\subsection{模糊综合评价模型}
+
+\subsubsection{模型原理}
+
+模糊综合评价是基于模糊数学隶属度理论，将定性评价转化为定量分析的方法，特别适合处理"模糊性"和"主观性"较强的评价问题。
+
+\textbf{步骤一：确定因素集与评语集。}
+\begin{itemize}
+    \item 因素集：$U = \{<< criteria_names | join(",\\ ") >>\}$，共 $n = << n_criteria >>$ 个因素。
+    \item 评语集：$V = \{<< grade_names | join(",\\ ") >>\}$，共 $<< n_grades >>$ 个等级。
+\end{itemize}
+
+\textbf{步骤二：构造模糊评价矩阵 $\mathbf{R}$。} 通过专家评分或隶属函数，确定各因素对各评语等级的隶属度，得到 $\mathbf{R} = (r_{ij})_{n \times << n_grades >>}$。
+
+\textbf{步骤三：确定权重向量。} 本文采用<< weights_source >>确定权重向量 $\mathbf{W} = (<< weights | map("%.4f" | format) | join(",\\ ") >>)$。
+
+\textbf{步骤四：模糊合成运算。}
+\begin{equation}
+    \mathbf{B} = \mathbf{W} \circ \mathbf{R} = (b_1, b_2, \ldots, b_{<< n_grades >>})
+    \label{eq:fuzzy_composition}
+\end{equation}
+此处 "$\circ$" 表示模糊合成算子（本文采用加权平均型 $M(\cdot, +)$ 算子）。
+
+\textbf{步骤五：根据最大隶属度原则确定评价等级。}
+
+\subsubsection{模糊评价矩阵}
+
+\begin{table}[H]
+    \centering
+    \caption{模糊评价矩阵 $\mathbf{R}$}
+    \label{tab:fuzzy_R}
+    \begin{tabular}{l<% for g in grade_names %>c<% endfor %>}
+        \toprule
+        \textbf{指标} & <% for g in grade_names %><% if not loop.first %> & <% endif %>\textbf{<< g >>}<% endfor %> \\
+        \midrule
+<% for i in range(n_criteria) %>
+        << criteria_names[i] >> & <% for j in range(n_grades) %><% if not loop.first %> & <% endif %><< "%.4f" | format(R_matrix[i][j]) >><% endfor %> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{综合评价结果}
+
+模糊合成运算得到综合评价向量：
+\begin{equation}
+    \mathbf{B} = (<< B_vector | map("%.4f" | format) | join(",\\ ") >>)
+\end{equation}
+
+根据最大隶属度原则，$\max(b_k) = << "%.4f" | format(max(B_vector)) >>$，对应评语等级为"\textbf{<< final_grade >>}"。
+
+<% if membership_fig_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{<< membership_fig_path >>}
+    \caption{综合评价向量隶属度分布}
+    \label{fig:fuzzy_membership}
+\end{figure}
+<% endif %>

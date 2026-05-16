@@ -1,0 +1,75 @@
+%% ============================================================
+%% 熵权法段落模板
+%% 变量:
+%%   n_criteria           — 指标数量
+%%   n_samples            — 样本数量
+%%   criteria_names       — 指标名称列表
+%%   entropy_values       — 各指标信息熵 e_j 列表
+%%   divergence_values    — 各指标差异系数 d_j 列表
+%%   entropy_weights      — 熵权法权重列表
+%%   weights_bar_path     — 权重条形图路径
+%%   entropy_table_path   — 信息熵表格图路径 (可选)
+%% ============================================================
+
+\subsection{基于熵权法的客观赋权}
+
+\subsubsection{模型原理}
+
+熵权法是一种根据数据本身所包含的信息量来客观确定指标权重的方法。其核心思想是：若某指标的变异程度越大，则提供的信息越多，其权重应越大。
+
+设有 $m = << n_samples >>$ 个评价对象、$n = << n_criteria >>$ 个评价指标，原始数据矩阵为 $\mathbf{X} = (x_{ij})_{m \times n}$。
+
+\textbf{步骤一：数据标准化。} 对指标进行正向化和归一化处理，得到标准化矩阵 $\mathbf{Z} = (z_{ij})$，并计算第 $j$ 个指标下第 $i$ 个对象的比重：
+\begin{equation}
+    p_{ij} = \frac{z_{ij}}{\sum_{k=1}^{m} z_{kj}}, \quad (j = 1, 2, \ldots, n)
+    \label{eq:entropy_proportion}
+\end{equation}
+
+\textbf{步骤二：计算信息熵。} 第 $j$ 个指标的信息熵定义为：
+\begin{equation}
+    e_j = -\frac{1}{\ln m} \sum_{i=1}^{m} p_{ij} \ln p_{ij}
+    \label{eq:entropy_value}
+\end{equation}
+约定当 $p_{ij} = 0$ 时，$p_{ij} \ln p_{ij} = 0$。
+
+\textbf{步骤三：计算差异系数。}
+\begin{equation}
+    d_j = 1 - e_j
+    \label{eq:entropy_divergence}
+\end{equation}
+
+\textbf{步骤四：计算权重。}
+\begin{equation}
+    w_j^{E} = \frac{d_j}{\sum_{k=1}^{n} d_k}
+    \label{eq:entropy_weight}
+\end{equation}
+
+\subsubsection{计算结果}
+
+各指标的信息熵、差异系数与最终权重如表~\ref{tab:entropy_result} 所示。
+
+\begin{table}[H]
+    \centering
+    \caption{熵权法计算结果}
+    \label{tab:entropy_result}
+    \begin{tabular}{lccc}
+        \toprule
+        \textbf{指标} & \textbf{信息熵 $e_j$} & \textbf{差异系数 $d_j$} & \textbf{权重 $w_j^E$} \\
+        \midrule
+<% for i in range(n_criteria) %>
+        << criteria_names[i] >> & << "%.6f" | format(entropy_values[i]) >> & << "%.6f" | format(divergence_values[i]) >> & << "%.6f" | format(entropy_weights[i]) >> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+<% if weights_bar_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{<< weights_bar_path >>}
+    \caption{熵权法指标权重分布}
+    \label{fig:entropy_weights_bar}
+\end{figure}
+<% endif %>
+
+从结果可以看出，<< criteria_names[entropy_weights.index(max(entropy_weights))] >> 的权重最大（$w = << "%.4f" | format(max(entropy_weights)) >>$），表明该指标在各评价对象间的差异程度最大，所含信息量最多；而 << criteria_names[entropy_weights.index(min(entropy_weights))] >> 的权重最小（$w = << "%.4f" | format(min(entropy_weights)) >>$），说明各对象在该指标上的表现较为接近。

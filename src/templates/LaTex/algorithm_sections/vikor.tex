@@ -1,0 +1,73 @@
+%% ============================================================
+%% VIKOR 段落模板
+%% 变量:
+%%   n_criteria, n_samples, criteria_names, object_names
+%%   weights, weights_source
+%%   S_values     — 群体效用值列表
+%%   R_values     — 个体遗憾值列表
+%%   Q_values     — 折中排序值列表
+%%   v_param      — 决策机制系数 v (默认0.5)
+%%   vikor_ranks  — VIKOR Q值排名
+%%   result_bar_path — 结果柱状图路径
+%% ============================================================
+
+\subsection{基于 VIKOR 的折中排序模型}
+
+\subsubsection{模型原理}
+
+VIKOR（VlseKriterijumska Optimizacija I Kompromisno Resenje）方法由 Opricovic 于 1998 年提出，其核心理念是在群体效用最大化与个体遗憾最小化之间寻求折中解。
+
+设有 $m = << n_samples >>$ 个评价对象、$n = << n_criteria >>$ 个指标，权重为 $\mathbf{w}$（由<< weights_source >>确定）。
+
+\textbf{步骤一：确定正理想值 $f_j^*$ 和负理想值 $f_j^-$。}
+\begin{equation}
+    f_j^* = \max_i f_{ij}, \quad f_j^- = \min_i f_{ij} \quad \text{（正向指标）}
+\end{equation}
+
+\textbf{步骤二：计算群体效用 $S_i$ 和个体遗憾 $R_i$。}
+\begin{equation}
+    S_i = \sum_{j=1}^{n} w_j \frac{f_j^* - f_{ij}}{f_j^* - f_j^-}, \quad
+    R_i = \max_j \left[ w_j \frac{f_j^* - f_{ij}}{f_j^* - f_j^-} \right]
+\end{equation}
+
+\textbf{步骤三：计算折中排序值 $Q_i$。}
+\begin{equation}
+    Q_i = v \frac{S_i - S^*}{S^- - S^*} + (1 - v) \frac{R_i - R^*}{R^- - R^*}
+    \label{eq:vikor_Q}
+\end{equation}
+其中 $v = << v_param >>$ 为决策机制系数，$S^* = \min S_i$，$S^- = \max S_i$，$R^* = \min R_i$，$R^- = \max R_i$。$Q_i$ 越小表示综合表现越优。
+
+\subsubsection{计算结果}
+
+\begin{table}[H]
+    \centering
+    \caption{VIKOR 综合评价结果}
+    \label{tab:vikor_result}
+    \begin{tabular}{lcccc}
+        \toprule
+        \textbf{评价对象} & $S_i$ & $R_i$ & $Q_i$ & \textbf{排名} \\
+        \midrule
+<% for i in range(n_samples) %>
+        << object_names[i] >> & << "%.6f" | format(S_values[i]) >> & << "%.6f" | format(R_values[i]) >> & << "%.6f" | format(Q_values[i]) >> & << vikor_ranks[i] >> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table>
+
+<% if result_bar_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{<< result_bar_path >>}
+    \caption{VIKOR $S$、$R$、$Q$ 值对比}
+    \label{fig:vikor_result}
+\end{figure}
+<% endif %>
+
+\subsubsection{折中解检验}
+
+VIKOR 方法要求最终折中解同时满足"可接受优势"和"可接受稳定性"两个条件：
+\begin{itemize}
+    \item \textbf{可接受优势：} $Q(a'') - Q(a') \geq 1/(m-1)$，其中 $a'$ 和 $a''$ 分别为 $Q$ 值排名第一和第二的方案。
+    \item \textbf{可接受稳定性：} $a'$ 在 $S$ 或 $R$ 排名中也为第一。
+\end{itemize}
+若两个条件均满足，则 $Q$ 值最小的方案为折中最优解。

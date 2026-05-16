@@ -1,0 +1,593 @@
+{# ================================================================== #}
+{# templates/python/function_blocks.py.j2                             #}
+{# AutoEval-Modeling — 通用工具函数块                                  #}
+{#                                                                      #}
+{# 说明：                                                               #}
+{#   · 本文件由 code_builder.py 通过 Jinja2 渲染后嵌入主脚本            #}
+{#   · 包含所有评价脚本共用的 I/O、日志、显示、数学工具函数             #}
+{#   · 渲染上下文中需提供 config / output 命名空间的变量               #}
+{#                                                                      #}
+{# 渲染上下文依赖 (context keys used here):                             #}
+{#   config.output_dir   : str  — 输出根目录                            #}
+{#   config.encoding     : str  — 文件编码，默认 utf-8                  #}
+{#   config.fig_dpi      : int  — 图片 DPI，默认 300                    #}
+{#   config.fig_format   : str  — 图片格式，默认 png                    #}
+{#   config.lang         : str  — 报告语言 zh / en                     #}
+{#   output.verbose      : bool — 是否详细输出                          #}
+{# ================================================================== #}
+
+# ==================================================================
+#  ██████╗  ██╗   ██╗ ████████╗ ██╗ ██╗      ███████╗
+# ██╔═══██╗ ██║   ██║    ██║    ██║ ██║      ██╔════╝
+# ██║   ██║ ██║   ██║    ██║    ██║ ██║      ███████╗
+# ██║   ██║ ██║   ██║    ██║    ██║ ██║      ╚════██║
+# ╚██████╔╝ ╚██████╔╝    ██║    ██║ ███████╗ ███████║
+#  ╚═════╝   ╚═════╝     ╚═╝    ╚═╝ ╚══════╝ ╚══════╝
+#
+#  通用工具函数区（由 function_blocks.py.j2 渲染生成）
+# ==================================================================
+
+import os
+import sys
+import logging
+import warnings
+import traceback
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+
+import numpy as np
+import pandas as pd
+
+warnings.filterwarnings("ignore")
+
+
+# ------------------------------------------------------------------
+# ❶  日志配置
+# ------------------------------------------------------------------
+
+def setup_logging(
+    log_dir: str = r"{{ config.output_dir }}logs",
+    verbose: bool = {{ output.verbose | lower }},
+    log_name: str = "autoeval",
+) -> logging.Logger:
+    """
+    配置并返回统一日志记录器。
+
+    同时输出到控制台（stdout）与带时间戳的日志文件。
+
+    Parameters
+    ----------
+    log_dir  : 日志文件保存目录
+    verbose  : True → DEBUG 级别；False → INFO 级别
+    log_name : 日志器名称，避免与其他模块冲突
+
+    Returns
+    -------
+    logging.Logger 实例
+    """
+    os.makedirs(log_dir, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_path = os.path.join(log_dir, f"{log_name}_{ts}.log")
+
+    level = logging.DEBUG if verbose else logging.INFO
+    fmt = "%(asctime)s [%(levelname)-8s] %(message)s"
+    date_fmt = "%H:%M:%S"
+
+    # 防止重复添加 handler（在 Jupyter / 重载场景中常见）
+    logger = logging.getLogger(log_name)
+    logger.setLevel(level)
+    if not logger.handlers:
+        # 文件 handler（UTF-8 支持中文）
+        fh = logging.FileHandler(log_path, encoding="utf-8")
+        fh.setLevel(level)
+        fh.setFormatter(logging.Formatter(fmt, date_fmt))
+        # 控制台 handler
+        ch = logging.StreamHandler(sys.stdout)
+        ch.setLevel(level)
+        ch.setFormatter(logging.Formatter(fmt, date_fmt))
+        logger.addHandler(fh)
+        logger.addHandler(ch)
+
+    logger.info("日志已初始化 → %s", log_path)
+    return logger
+
+
+# ------------------------------------------------------------------
+# ❷  输出目录管理
+# ------------------------------------------------------------------
+
+def setup_output_dirs(base_dir: str = r"{{ config.output_dir }}") -> Dict[str, str]:
+    """
+    创建标准输出目录树，返回各子目录的绝对路径字典。
+
+    目录结构
+    --------
+    <base_dir>/
+        ├── reports/     LaTeX 源码与编译产物
+        ├── figures/     可视化图片
+        ├── tables/      中间结果 CSV 表格
+        ├── scripts/     生成的独立可执行脚本
+        └── logs/        运行日志
+
+    Returns
+    -------
+    dict : {"base", "reports", "figures", "tables", "scripts", "logs"}
+           各键对应创建完成的绝对路径字符串
+    """
+    sub_dirs = ["reports", "figures", "tables", "scripts", "logs"]
+    dirs: Dict[str, str] = {"base": os.path.abspath(base_dir)}
+    for name in sub_dirs:
+        path = os.path.join(base_dir, name)
+        os.makedirs(path, exist_ok=True)
+        dirs[name] = os.path.abspath(path)
+    return dirs
+
+
+# ------------------------------------------------------------------
+# ❸  数据加载
+# ------------------------------------------------------------------
+
+def load_data(
+    filepath: str,
+    eval_col: str,
+    indicator_cols: List[str],
+    encoding: str = "{{ config.encoding }}",
+    sheet_name: Optional[Union[str, int]] = {% if config.sheet_name is not none %}{{ config.sheet_name | tojson }}{% else %}None{% endif %},
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[np.ndarray, np.ndarray, pd.DataFrame]:
+    """
+    加载评价数据文件，支持 CSV 与 Excel 格式。
+
+    Parameters
+    ----------
+    filepath       : 数据文件路径（.csv / .xlsx / .xls）
+    eval_col       : 评价对象所在列名（如 "城市"、"方案"）
+    indicator_cols : 指标列名列表
+    encoding       : CSV 文件编码
+    sheet_name     : Excel 工作表名 / 索引；None → 第一张表
+    logger         : 日志记录器（可选）
+
+    Returns
+    -------
+    objects        : 评价对象名称数组，shape = (n_objects,)
+    data_matrix    : 指标数据矩阵（浮点型），shape = (n_objects, n_indicators)
+    raw_df         : 原始 DataFrame（含所有列，保留供后续使用）
+
+    Raises
+    ------
+    FileNotFoundError : 文件不存在
+    KeyError          : 指定列名不在数据文件中
+    ValueError        : 无法解析的文件格式
+    """
+    _log = logger.info if logger else print
+
+    # —— 文件存在性检验 ——
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"数据文件不存在: {filepath}")
+
+    suffix = Path(filepath).suffix.lower()
+    _log(f"正在读取数据文件: {filepath}  (格式: {suffix})")
+
+    # —— 按格式读取 ——
+    if suffix in (".xlsx", ".xls", ".xlsm", ".xlsb"):
+        raw_df = pd.read_excel(
+            filepath,
+            sheet_name=(sheet_name if sheet_name is not None else 0),
+        )
+    elif suffix == ".csv":
+        raw_df = pd.read_csv(filepath, encoding=encoding)
+    else:
+        raise ValueError(
+            f"不支持的文件格式: '{suffix}'。"
+            "请提供 .csv / .xlsx / .xls 文件。"
+        )
+
+    # —— 列名校验 ——
+    all_required = [eval_col] + indicator_cols
+    missing = [c for c in all_required if c not in raw_df.columns]
+    if missing:
+        raise KeyError(
+            f"数据文件缺少以下列: {missing}\n"
+            f"文件实际包含列: {raw_df.columns.tolist()}"
+        )
+
+    # —— 提取对象名与指标矩阵 ——
+    objects = raw_df[eval_col].astype(str).values
+    data_matrix = (
+        raw_df[indicator_cols]
+        .apply(pd.to_numeric, errors="coerce")
+        .values
+        .astype(float)
+    )
+
+    _log(f"数据加载完成 → 评价对象: {len(objects)} 个，指标: {len(indicator_cols)} 个")
+    return objects, data_matrix, raw_df
+
+
+# ------------------------------------------------------------------
+# ❹  数据质量验证
+# ------------------------------------------------------------------
+
+def validate_data(
+    data_matrix: np.ndarray,
+    objects: np.ndarray,
+    indicator_names: List[str],
+    logger: Optional[logging.Logger] = None,
+) -> Dict[str, Any]:
+    """
+    对原始数据矩阵进行质量检查，返回质量报告字典。
+
+    检查项目
+    --------
+    · 缺失值数量与比例（逐列统计）
+    · 零方差列（无区分度指标）
+    · 极端异常值（IQR 方法初步标记）
+    · 样本量 vs 指标数比例建议
+
+    Returns
+    -------
+    report : dict
+        n_objects       样本量
+        n_indicators    指标数
+        missing_total   缺失值总数
+        missing_by_col  各列缺失率 dict {col_name: rate}
+        zero_var_cols   方差为零的列名列表
+        warnings        警告信息列表
+        passed          是否通过基本质量门槛（bool）
+    """
+    _log = logger.warning if logger else print
+    n_obj, n_ind = data_matrix.shape
+
+    # —— 缺失值统计 ——
+    missing_mask = np.isnan(data_matrix)
+    missing_total = int(missing_mask.sum())
+    missing_by_col = {
+        indicator_names[j]: float(missing_mask[:, j].mean())
+        for j in range(n_ind)
+    }
+
+    # —— 零方差检验 ——
+    variances = np.nanvar(data_matrix, axis=0)
+    zero_var_cols = [indicator_names[j] for j in range(n_ind) if variances[j] < 1e-12]
+
+    warnings_list: List[str] = []
+    if missing_total > 0:
+        warnings_list.append(
+            f"共发现 {missing_total} 个缺失值 "
+            f"（总缺失率 {missing_total / data_matrix.size:.1%}）"
+        )
+    if zero_var_cols:
+        warnings_list.append(
+            f"以下指标方差为零，无区分能力，建议剔除: {zero_var_cols}"
+        )
+    if n_obj < n_ind:
+        warnings_list.append(
+            f"样本量({n_obj}) < 指标数({n_ind})，"
+            "建议考虑 PCA 降维以减少多重共线性影响"
+        )
+    if n_obj < 5:
+        warnings_list.append(
+            f"样本量过小({n_obj})，评价结果稳健性存疑，"
+            "建议谨慎解读"
+        )
+
+    passed = (missing_total == 0 or missing_total / data_matrix.size < 0.30) and \
+             not zero_var_cols
+
+    report = {
+        "n_objects":      n_obj,
+        "n_indicators":   n_ind,
+        "missing_total":  missing_total,
+        "missing_by_col": missing_by_col,
+        "zero_var_cols":  zero_var_cols,
+        "warnings":       warnings_list,
+        "passed":         passed,
+    }
+
+    # —— 控制台输出 ——
+    print_section("数据质量报告")
+    print(f"  评价对象数  : {n_obj}")
+    print(f"  评价指标数  : {n_ind}")
+    print(f"  缺失值总计  : {missing_total} ({missing_total/data_matrix.size:.1%})")
+    print(f"  质量门槛    : {'✅ 通过' if passed else '⚠️  未完全通过（请检查警告）'}")
+    if warnings_list:
+        print("  警告信息    :")
+        for w in warnings_list:
+            print(f"    ⚠  {w}")
+    return report
+
+
+# ------------------------------------------------------------------
+# ❺  结果保存工具
+# ------------------------------------------------------------------
+
+def save_dataframe(
+    df: pd.DataFrame,
+    filename: str,
+    output_dir: str,
+    index: bool = True,
+    logger: Optional[logging.Logger] = None,
+) -> str:
+    """
+    将 DataFrame 保存为 CSV（使用 utf-8-sig，Excel 可直接打开中文）。
+
+    Returns
+    -------
+    str : 保存文件的绝对路径
+    """
+    os.makedirs(output_dir, exist_ok=True)
+    # 自动补充扩展名
+    if not filename.endswith(".csv"):
+        filename = filename + ".csv"
+    filepath = os.path.join(output_dir, filename)
+    df.to_csv(filepath, index=index, encoding="utf-8-sig")
+    msg = f"  📄 表格已保存 → {filepath}"
+    (logger.info if logger else print)(msg)
+    return os.path.abspath(filepath)
+
+
+def save_figure(
+    fig,
+    filename: str,
+    figures_dir: str,
+    dpi: int = {{ config.fig_dpi }},
+    fmt: str = "{{ config.fig_format }}",
+    logger: Optional[logging.Logger] = None,
+) -> str:
+    """
+    保存 matplotlib Figure 到指定目录。
+
+    Parameters
+    ----------
+    fig         : matplotlib Figure 对象
+    filename    : 文件名（不含扩展名时自动添加）
+    figures_dir : 图片保存目录
+    dpi         : 输出分辨率（默认 {{ config.fig_dpi }} DPI）
+    fmt         : 格式，{{ config.fig_format }} / pdf / svg 等
+
+    Returns
+    -------
+    str : 保存文件的绝对路径
+    """
+    import matplotlib.pyplot as plt
+    os.makedirs(figures_dir, exist_ok=True)
+    # 确保扩展名正确
+    stem = Path(filename).stem
+    filepath = os.path.join(figures_dir, f"{stem}.{fmt}")
+    fig.savefig(filepath, dpi=dpi, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    msg = f"  🖼  图片已保存 → {filepath}"
+    (logger.info if logger else print)(msg)
+    return os.path.abspath(filepath)
+
+
+# ------------------------------------------------------------------
+# ❻  控制台格式化输出
+# ------------------------------------------------------------------
+
+def print_section(title: str, char: str = "═", width: int = 62) -> None:
+    """打印带双线分隔的节标题，提升脚本可读性。"""
+    border = char * width
+    print(f"\n{border}")
+    print(f"  {title}")
+    print(f"{border}")
+
+
+def print_step(step_num: int, title: str, total: Optional[int] = None) -> None:
+    """打印带步骤编号的子节标题。"""
+    suffix = f"/{total}" if total else ""
+    print(f"\n{'─' * 62}")
+    print(f"  [Step {step_num}{suffix}]  ▶  {title}")
+    print(f"{'─' * 62}")
+
+
+def print_weights_table(
+    weights: np.ndarray,
+    indicator_names: List[str],
+    method_name: str = "",
+    logger: Optional[logging.Logger] = None,
+) -> None:
+    """
+    格式化打印权重向量表格（含权重值与百分比）。
+
+    Parameters
+    ----------
+    weights        : 权重数组，shape = (n_indicators,)
+    indicator_names: 指标名称列表
+    method_name    : 赋权方法名称（用于标题）
+    """
+    label = f"权重结果（{method_name}）" if method_name else "权重结果"
+    print(f"\n  {label}:")
+    w_df = pd.DataFrame({
+        "指标":   indicator_names,
+        "权重":   [f"{w:.6f}" for w in weights],
+        "占比%":  [f"{w * 100:.2f}%" for w in weights],
+    })
+    print(w_df.to_string(index=False, justify="center"))
+    print(f"  {'─'*40}")
+    print(f"  权重合计: {weights.sum():.6f}  (应≈1.0)")
+
+
+def print_ranking_table(
+    objects: np.ndarray,
+    scores: np.ndarray,
+    method_name: str = "综合评价",
+    ascending: bool = False,
+    logger: Optional[logging.Logger] = None,
+) -> pd.DataFrame:
+    """
+    格式化打印评价排名结果，返回排名 DataFrame。
+
+    Parameters
+    ----------
+    objects    : 评价对象名称数组
+    scores     : 综合得分数组（越大越好，ascending=False）
+    method_name: 评价方法名称
+    ascending  : True → 分数越小排名越高（如 VIKOR 的 Q 值）
+
+    Returns
+    -------
+    pd.DataFrame : 包含排名、对象名、得分的整理结果
+    """
+    sort_idx = np.argsort(scores) if ascending else np.argsort(scores)[::-1]
+    rank_df = pd.DataFrame({
+        "排名":            range(1, len(objects) + 1),
+        "评价对象":        [objects[i] for i in sort_idx],
+        f"{method_name}得分": [f"{scores[i]:.4f}" for i in sort_idx],
+    })
+    print(f"\n  {method_name} — 排名结果:")
+    print(rank_df.to_string(index=False, justify="center"))
+    return rank_df
+
+
+# ------------------------------------------------------------------
+# ❼  数值与矩阵格式化工具
+# ------------------------------------------------------------------
+
+def fmt_num(
+    x: Any,
+    decimals: int = 4,
+    na_str: str = "N/A",
+) -> str:
+    """
+    统一数字格式化，处理 NaN / inf / None 边界值。
+
+    Parameters
+    ----------
+    x        : 待格式化数值
+    decimals : 小数位数
+    na_str   : NaN / None 时的替代字符串
+    """
+    if x is None:
+        return na_str
+    try:
+        f = float(x)
+    except (TypeError, ValueError):
+        return str(x)
+    if np.isnan(f):
+        return na_str
+    if np.isinf(f):
+        return "∞" if f > 0 else "-∞"
+    return f"{f:.{decimals}f}"
+
+
+def arr_to_df(
+    arr: np.ndarray,
+    row_labels: Sequence[str],
+    col_labels: Sequence[str],
+    decimals: int = 4,
+) -> pd.DataFrame:
+    """
+    将二维 numpy 数组转换为带行/列标签的 DataFrame（保留指定小数位）。
+
+    Parameters
+    ----------
+    arr        : 二维数据数组，shape = (n_rows, n_cols)
+    row_labels : 行标签列表
+    col_labels : 列标签列表
+    decimals   : 保留小数位数
+
+    Returns
+    -------
+    pd.DataFrame : 格式化后的 DataFrame
+    """
+    return pd.DataFrame(
+        np.round(arr, decimals),
+        index=row_labels,
+        columns=col_labels,
+    )
+
+
+def correlation_matrix(
+    data_matrix: np.ndarray,
+    indicator_names: List[str],
+) -> Tuple[pd.DataFrame, List[Tuple[str, str, float]]]:
+    """
+    计算指标相关系数矩阵，并提取高相关指标对。
+
+    Returns
+    -------
+    corr_df      : 相关系数 DataFrame
+    high_corr    : 高相关对列表 [(ind_a, ind_b, r), ...]，|r| > 0.85
+    """
+    corr_df = pd.DataFrame(
+        np.corrcoef(data_matrix.T),
+        index=indicator_names,
+        columns=indicator_names,
+    )
+    n = len(indicator_names)
+    high_corr: List[Tuple[str, str, float]] = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            r = corr_df.iloc[i, j]
+            if abs(r) > 0.85:
+                high_corr.append((indicator_names[i], indicator_names[j], r))
+    return corr_df, high_corr
+
+
+def check_ahp_consistency(matrix: np.ndarray) -> Tuple[float, float, bool]:
+    """
+    检验 AHP 判断矩阵一致性。
+
+    AHP 一致性指标 CI = (λ_max - n) / (n - 1)
+    随机一致性比率 CR = CI / RI (RI 为平均随机一致性指数表)
+
+    Parameters
+    ----------
+    matrix : n×n 正互反判断矩阵
+
+    Returns
+    -------
+    ci     : 一致性指标
+    cr     : 一致性比率（CR < 0.10 视为通过）
+    passed : 是否通过一致性检验
+    """
+    # Saaty RI 表（n=1..15）
+    ri_table = {
+        1: 0.00, 2: 0.00, 3: 0.58, 4: 0.90, 5: 1.12,
+        6: 1.24, 7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49,
+        11: 1.51, 12: 1.54, 13: 1.56, 14: 1.57, 15: 1.59,
+    }
+    n = matrix.shape[0]
+    eigenvalues, _ = np.linalg.eig(matrix)
+    lambda_max = float(np.max(eigenvalues.real))
+    ci = (lambda_max - n) / max(n - 1, 1)
+    ri = ri_table.get(n, 1.59)
+    cr = ci / ri if ri > 0 else 0.0
+    passed = cr < 0.10
+    return ci, cr, passed
+
+
+# ------------------------------------------------------------------
+# ❽  安全数学工具（防止除零 / 奇异矩阵）
+# ------------------------------------------------------------------
+
+def safe_divide(
+    numerator: np.ndarray,
+    denominator: np.ndarray,
+    fill_value: float = 0.0,
+) -> np.ndarray:
+    """
+    安全除法，将分母为零的位置填充为 fill_value。
+    用于归一化等操作防止 NaN / inf。
+    """
+    with np.errstate(divide="ignore", invalid="ignore"):
+        result = np.where(
+            np.abs(denominator) < 1e-12,
+            fill_value,
+            numerator / denominator,
+        )
+    return result
+
+
+def normalize_weights(weights: np.ndarray) -> np.ndarray:
+    """
+    对权重向量进行归一化，确保 sum = 1.0。
+    若输入全为零则返回均匀权重。
+    """
+    total = weights.sum()
+    if total < 1e-12:
+        n = len(weights)
+        return np.full(n, 1.0 / n)
+    return weights / total

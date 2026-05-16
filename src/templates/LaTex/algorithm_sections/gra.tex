@@ -1,0 +1,61 @@
+%% ============================================================
+%% 灰色关联分析段落模板
+%% 变量:
+%%   n_criteria, n_samples, criteria_names, object_names
+%%   rho                  — 分辨系数 (默认 0.5)
+%%   gra_matrix           — 关联系数矩阵 (二维列表)
+%%   gra_degrees          — 灰色关联度列表
+%%   gra_ranks            — 排名列表
+%%   gra_bar_path         — 关联度排序图路径
+%% ============================================================
+
+\subsection{基于灰色关联分析（GRA）的综合评价}
+
+\subsubsection{模型原理}
+
+灰色关联分析由邓聚龙教授于 1982 年提出，是灰色系统理论的重要组成部分。该方法通过比较各评价对象与参考序列的几何相似程度来评判优劣，特别适用于样本量较小、信息不完全的情形。
+
+设参考序列（理想序列）为 $\mathbf{x}_0 = (x_0(1), x_0(2), \ldots, x_0(n))$，通常取各指标的最优值。第 $i$ 个比较序列为 $\mathbf{x}_i = (x_i(1), x_i(2), \ldots, x_i(n))$。
+
+\textbf{步骤一：计算关联系数。}
+\begin{equation}
+    \xi_i(j) = \frac{\min_i \min_j |x_0(j) - x_i(j)| + \rho \cdot \max_i \max_j |x_0(j) - x_i(j)|}{|x_0(j) - x_i(j)| + \rho \cdot \max_i \max_j |x_0(j) - x_i(j)|}
+    \label{eq:gra_coefficient}
+\end{equation}
+其中 $\rho \in [0, 1]$ 为分辨系数，本文取 $\rho = << rho >>$。
+
+\textbf{步骤二：计算灰色关联度。}
+\begin{equation}
+    r_i = \frac{1}{n} \sum_{j=1}^{n} \xi_i(j) \quad \text{或} \quad r_i = \sum_{j=1}^{n} w_j \xi_i(j)
+    \label{eq:gra_degree}
+\end{equation}
+
+$r_i$ 越大，说明第 $i$ 个评价对象与理想方案越相似，综合表现越好。
+
+\subsubsection{计算结果}
+
+取分辨系数 $\rho = << rho >>$，各评价对象的灰色关联度与排名如表~\ref{tab:gra_result} 所示。
+
+\begin{table}[H]
+    \centering
+    \caption{灰色关联度及排名}
+    \label{tab:gra_result}
+    \begin{tabular}{lcc}
+        \toprule
+        \textbf{评价对象} & \textbf{关联度 $r_i$} & \textbf{排名} \\
+        \midrule
+<% for i in range(n_samples) %>
+        << object_names[i] >> & << "%.6f" | format(gra_degrees[i]) >> & << gra_ranks[i] >> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+<% if gra_bar_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{<< gra_bar_path >>}
+    \caption{各评价对象灰色关联度排序}
+    \label{fig:gra_bar}
+\end{figure}
+<% endif %>

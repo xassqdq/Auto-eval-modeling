@@ -1,0 +1,45 @@
+src/templates/latex/
+├── base_template.tex
+├── tables_figures.tex
+└── algorithm_sections/
+    ├── ahp.tex
+    ├── entropy.tex
+    ├── critic.tex
+    ├── topsis.tex
+    ├── vikor.tex
+    ├── gra.tex
+    ├── fuzzy_eval.tex
+    ├── electre.tex
+    ├── rsr.tex
+    ├── dea.tex
+    ├── pca.tex
+    ├── combination_weight.tex
+    ├── dynamic_eval.tex
+    └── sensitivity.tex
+
+
+
+# 创建完整目录结构
+mkdir -p src/templates/latex/algorithm_sections
+
+# 创建的文件列表
+tree src/templates/latex/
+
+# src/templates/latex/
+# ├── base_template.tex              ← 论文主框架
+# ├── tables_figures.tex             ← 通用表格/图片/代码宏
+# └── algorithm_sections/
+#     ├── ahp.tex                    ← 层次分析法
+#     ├── entropy.tex                ← 熵权法
+#     ├── critic.tex                 ← CRITIC法
+#     ├── topsis.tex                 ← TOPSIS
+#     ├── vikor.tex                  ← VIKOR
+#     ├── gra.tex                    ← 灰色关联分析
+#     ├── fuzzy_eval.tex             ← 模糊综合评价
+#     ├── electre.tex                ← ELECTRE
+#     ├── rsr.tex                    ← 秩和比法
+#     ├── dea.tex                    ← 数据包络分析
+#     ├── pca.tex                    ← 主成分分析
+#     ├── combination_weight.tex     ← 组合赋权
+#     ├── dynamic_eval.tex           ← 动态时序评价
+#     └── sensitivity.tex            ← 灵敏度分析

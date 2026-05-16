@@ -1,0 +1,58 @@
+%% ============================================================
+%% 秩和比法 (RSR) 段落模板
+%% 变量:
+%%   n_criteria, n_samples, criteria_names, object_names
+%%   rank_matrix          — 秩矩阵 (二维列表)
+%%   rsr_values           — RSR 值列表
+%%   probit_values        — Probit 值列表 (可选)
+%%   rsr_grades           — 分档等级列表
+%%   grade_thresholds     — 分档阈值说明
+%%   rsr_bar_path         — RSR 排序图路径
+%% ============================================================
+
+\subsection{基于秩和比法（RSR）的综合评价}
+
+\subsubsection{模型原理}
+
+秩和比法（Rank Sum Ratio, RSR）是一种非参数统计分析方法，通过对各指标值编秩后取均秩比实现综合评价，计算简便且对数据分布无严格要求。
+
+设 $m$ 个评价对象、$n$ 个指标，第 $i$ 个对象在第 $j$ 个指标上的秩为 $R_{ij}$（正向指标从小到大编秩），则秩和比为：
+\begin{equation}
+    RSR_i = \frac{1}{m \cdot n} \sum_{j=1}^{n} R_{ij}
+    \label{eq:rsr}
+\end{equation}
+
+若考虑权重：
+\begin{equation}
+    wRSR_i = \frac{1}{m} \sum_{j=1}^{n} w_j R_{ij}
+\end{equation}
+
+RSR 值越大，综合评价越好。可进一步结合 Probit 回归进行分档。
+
+\subsubsection{计算结果}
+
+\begin{table}[H]
+    \centering
+    \caption{RSR 综合评价结果}
+    \label{tab:rsr_result}
+    \begin{tabular}{lccc}
+        \toprule
+        \textbf{评价对象} & \textbf{RSR} & \textbf{Probit} & \textbf{等级} \\
+        \midrule
+<% for i in range(n_samples) %>
+        << object_names[i] >> & << "%.6f" | format(rsr_values[i]) >> & << "%.4f" | format(probit_values[i]) if probit_values else "--" >> & << rsr_grades[i] >> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+分档标准：<< grade_thresholds >>
+
+<% if rsr_bar_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{<< rsr_bar_path >>}
+    \caption{各评价对象 RSR 值排序}
+    \label{fig:rsr_bar}
+\end{figure}
+<% endif %>

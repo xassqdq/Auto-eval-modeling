@@ -1,0 +1,62 @@
+%% ============================================================
+%% ELECTRE 段落模板
+%% 变量:
+%%   n_criteria, n_samples, criteria_names, object_names
+%%   weights, weights_source
+%%   concordance_matrix   — 一致性矩阵
+%%   discordance_matrix   — 不一致性矩阵
+%%   c_threshold          — 一致性阈值
+%%   d_threshold          — 不一致性阈值
+%%   dominance_matrix     — 优超矩阵
+%%   kernel_set           — 核心集 (优势方案列表)
+%%   dominance_graph_path — 优超关系图路径 (可选)
+%% ============================================================
+
+\subsection{基于 ELECTRE 的优超排序模型}
+
+\subsubsection{模型原理}
+
+ELECTRE（Elimination Et Choix Traduisant la Realité）方法通过构建方案间的"优超关系"来进行筛选和排序，适用于需要区分"不可比"关系的决策场景。
+
+\textbf{步骤一：构建一致性矩阵 $\mathbf{C}$。} 对方案对 $(a_p, a_q)$，一致性指数定义为支持 $a_p$ 优于 $a_q$ 的指标权重之和：
+\begin{equation}
+    c(a_p, a_q) = \sum_{j \in J^+_{pq}} w_j + \frac{1}{2}\sum_{j \in J^=_{pq}} w_j
+\end{equation}
+其中 $J^+_{pq} = \{j \mid f_{pj} > f_{qj}\}$，$J^=_{pq} = \{j \mid f_{pj} = f_{qj}\}$。
+
+\textbf{步骤二：构建不一致性矩阵 $\mathbf{D}$。}
+\begin{equation}
+    d(a_p, a_q) = \frac{\max_{j \in J^-_{pq}} (f_{qj} - f_{pj})}{\max_{j} (f_{qj} - f_{pj})}
+\end{equation}
+
+\textbf{步骤三：确定阈值并构建优超矩阵。} 当 $c(a_p, a_q) \geq \bar{c}$ 且 $d(a_p, a_q) \leq \bar{d}$ 时，认为 $a_p$ 优超 $a_q$。
+
+\subsubsection{计算结果}
+
+取一致性阈值 $\bar{c} = << "%.2f" | format(c_threshold) >>$，不一致性阈值 $\bar{d} = << "%.2f" | format(d_threshold) >>$。
+
+\begin{table}[H]
+    \centering
+    \caption{一致性矩阵 $\mathbf{C}$}
+    \label{tab:electre_concordance}
+    \begin{tabular}{c<% for o in object_names %>c<% endfor %>}
+        \toprule
+         & <% for o in object_names %><% if not loop.first %> & <% endif %>\textbf{<< o >>}<% endfor %> \\
+        \midrule
+<% for i in range(n_samples) %>
+        \textbf{<< object_names[i] >>} & <% for j in range(n_samples) %><% if not loop.first %> & <% endif %><< "%.4f" | format(concordance_matrix[i][j]) >><% endfor %> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table>
+
+经优超关系判定，核心集（优势方案）为：$\{<< kernel_set | join(",\\ ") >>\}$。
+
+<% if dominance_graph_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{<< dominance_graph_path >>}
+    \caption{方案优超关系图}
+    \label{fig:electre_dominance}
+\end{figure}
+<% endif %>

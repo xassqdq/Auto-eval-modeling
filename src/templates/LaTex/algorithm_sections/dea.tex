@@ -1,0 +1,68 @@
+%% ============================================================
+%% 数据包络分析 (DEA) 段落模板
+%% 变量:
+%%   n_dmu                — 决策单元数量
+%%   dmu_names            — DMU 名称列表
+%%   input_names          — 投入指标名称列表
+%%   output_names         — 产出指标名称列表
+%%   model_type           — 模型类型 ("CCR" / "BCC")
+%%   orientation          — 导向 ("input" / "output")
+%%   efficiency_scores    — 效率值列表
+%%   is_efficient         — 是否 DEA 有效 (bool 列表)
+%%   slacks_inputs        — 投入松弛变量 (二维列表, 可选)
+%%   slacks_outputs       — 产出松弛变量 (二维列表, 可选)
+%%   efficiency_bar_path  — 效率值柱状图路径
+%% ============================================================
+
+\subsection{基于数据包络分析（DEA）的效率评价}
+
+\subsubsection{模型原理}
+
+数据包络分析（Data Envelopment Analysis, DEA）是一种基于线性规划的非参数效率评价方法，无需假设生产函数的具体形式。
+
+本文采用 \textbf{<< model_type >>} 模型（<< "投入导向" if orientation == "input" else "产出导向" >>），共有 $<< n_dmu >>$ 个决策单元（DMU），投入指标 $<< input_names | length >>$ 个，产出指标 $<< output_names | length >>$ 个。
+
+<% if model_type == "CCR" %>
+CCR 模型假设规模报酬不变（CRS），对于第 $k$ 个 DMU，效率评价的线性规划对偶形式为：
+\begin{equation}
+\begin{aligned}
+    \min \quad & \theta \\
+    \text{s.t.} \quad & \sum_{j=1}^{n} \lambda_j x_{ij} \leq \theta x_{ik}, \quad i = 1, \ldots, s_1 \\
+    & \sum_{j=1}^{n} \lambda_j y_{rj} \geq y_{rk}, \quad r = 1, \ldots, s_2 \\
+    & \lambda_j \geq 0, \quad j = 1, \ldots, n
+\end{aligned}
+\label{eq:dea_ccr}
+\end{equation}
+<% else %>
+BCC 模型放松了规模报酬假设（VRS），增加约束 $\sum \lambda_j = 1$，可区分纯技术效率与规模效率。
+<% endif %>
+
+当 $\theta^* = 1$ 且所有松弛变量为零时，该 DMU 为 DEA 有效。
+
+\subsubsection{计算结果}
+
+\begin{table}[H]
+    \centering
+    \caption{<< model_type >> DEA 效率评价结果}
+    \label{tab:dea_result}
+    \begin{tabular}{lcc}
+        \toprule
+        \textbf{DMU} & \textbf{效率值 $\theta^*$} & \textbf{是否有效} \\
+        \midrule
+<% for i in range(n_dmu) %>
+        << dmu_names[i] >> & << "%.6f" | format(efficiency_scores[i]) >> & << "是" if is_efficient[i] else "否" >> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+<% if efficiency_bar_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{<< efficiency_bar_path >>}
+    \caption{各 DMU 效率值对比}
+    \label{fig:dea_bar}
+\end{figure}
+<% endif %>
+
+共有 << is_efficient | select | list | length >> 个 DMU 达到 DEA 有效，占比 << "%.1f" | format(is_efficient | select | list | length / n_dmu * 100) >>\%。效率值最低的为 << dmu_names[efficiency_scores.index(min(efficiency_scores))] >>（$\theta^* = << "%.4f" | format(min(efficiency_scores)) >>$），可进一步分析其投入冗余与产出不足。

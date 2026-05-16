@@ -1,0 +1,86 @@
+%% ============================================================
+%% 动态时序评价段落模板
+%% 变量:
+%%   n_periods            — 时段数量
+%%   period_names         — 时段名称列表 (如 ["2019","2020","2021"])
+%%   object_names         — 评价对象名称列表
+%%   n_samples            — 对象数量
+%%   eval_method          — 单期评价方法 (如 "TOPSIS")
+%%   time_weights         — 时间权重列表
+%%   time_weight_method   — 时间权重确定方法说明
+%%   period_scores        — 分期得分矩阵 [period][object]
+%%   dynamic_scores       — 综合动态得分列表
+%%   dynamic_ranks        — 综合排名列表
+%%   trend_plot_path      — 趋势折线图路径
+%%   dynamic_bar_path     — 动态综合得分柱状图路径
+%% ============================================================
+
+\subsection{动态时序综合评价模型}
+
+\subsubsection{模型原理}
+
+当评价数据具有时间序列特征（如多年度面板数据）时，需构建动态评价模型以捕捉各对象的发展趋势。
+
+本文采用"分期评价 + 时间加权汇总"的策略：
+
+\textbf{步骤一：分期评价。} 对每个时段 $t \in \{<< period_names | join(",\\ ") >>\}$，独立采用 << eval_method >> 方法计算各对象的得分 $s_i(t)$。
+
+\textbf{步骤二：确定时间权重。} << time_weight_method >>，得到时间权重向量 $\boldsymbol{\tau} = (<< time_weights | map("%.4f" | format) | join(",\\ ") >>)$。通常赋予较近时段更高权重以反映"近期优先"原则。
+
+\textbf{步骤三：动态综合得分。}
+\begin{equation}
+    S_i^{dyn} = \sum_{t=1}^{T} \tau_t \cdot s_i(t)
+    \label{eq:dynamic_score}
+\end{equation}
+
+\subsubsection{分期评价结果}
+
+\begin{table}[H]
+    \centering
+    \caption{各时段 << eval_method >> 得分}
+    \label{tab:dynamic_period_scores}
+    \begin{tabular}{l<% for p in period_names %>c<% endfor %>}
+        \toprule
+        \textbf{评价对象} & <% for p in period_names %><% if not loop.first %> & <% endif %>\textbf{<< p >>}<% endfor %> \\
+        \midrule
+<% for i in range(n_samples) %>
+        << object_names[i] >> & <% for t in range(n_periods) %><% if not loop.first %> & <% endif %><< "%.4f" | format(period_scores[t][i]) >><% endfor %> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{动态综合评价结果}
+
+\begin{table}[H]
+    \centering
+    \caption{动态综合评价得分与排名}
+    \label{tab:dynamic_result}
+    \begin{tabular}{lcc}
+        \toprule
+        \textbf{评价对象} & \textbf{动态综合得分} & \textbf{排名} \\
+        \midrule
+<% for i in range(n_samples) %>
+        << object_names[i] >> & << "%.6f" | format(dynamic_scores[i]) >> & << dynamic_ranks[i] >> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+<% if trend_plot_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{<< trend_plot_path >>}
+    \caption{各评价对象得分趋势变化}
+    \label{fig:dynamic_trend}
+\end{figure}
+<% endif %>
+
+<% if dynamic_bar_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{<< dynamic_bar_path >>}
+    \caption{动态综合得分排序}
+    \label{fig:dynamic_bar}
+\end{figure}
+<% endif %>

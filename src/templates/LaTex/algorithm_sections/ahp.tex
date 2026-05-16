@@ -1,0 +1,114 @@
+%% ============================================================
+%% AHP (层次分析法) 段落模板
+%% 变量:
+%%   n_criteria           — 指标数量
+%%   criteria_names       — 指标名称列表
+%%   judgment_matrix      — 判断矩阵 (二维列表)
+%%   max_eigenvalue       — 最大特征值 λ_max
+%%   ci_value             — 一致性指标 CI
+%%   ri_value             — 随机一致性指标 RI
+%%   cr_value             — 一致性比例 CR
+%%   cr_passed            — 一致性检验是否通过 (bool)
+%%   ahp_weights          — AHP 权重列表
+%%   judgment_heatmap_path— 判断矩阵热力图路径
+%%   weights_bar_path     — 权重条形图路径
+%% ============================================================
+
+\subsection{基于层次分析法（AHP）的主观赋权}
+
+\subsubsection{模型原理}
+
+层次分析法（Analytic Hierarchy Process, AHP）由 Saaty 于 1977 年提出，是一种定性与定量相结合的多准则决策方法。其核心思想是将复杂问题分解为若干层次和若干因素，通过构建两两比较的判断矩阵，计算各因素的相对权重。
+
+对于 $n=<< n_criteria >>$ 个评价指标，AHP 的基本步骤如下：
+
+\textbf{步骤一：构建判断矩阵。} 邀请专家对指标两两比较其相对重要程度，采用 Saaty 的 1--9 标度法构建判断矩阵 $\mathbf{A} = (a_{ij})_{n \times n}$，其中 $a_{ij}$ 表示指标 $i$ 相对于指标 $j$ 的重要程度，且满足：
+\begin{equation}
+    a_{ij} > 0, \quad a_{ji} = \frac{1}{a_{ij}}, \quad a_{ii} = 1
+    \label{eq:ahp_reciprocal}
+\end{equation}
+
+\textbf{步骤二：计算权重向量。} 对判断矩阵求最大特征值 $\lambda_{\max}$ 及其对应的特征向量 $\mathbf{w}$，归一化后即为权重：
+\begin{equation}
+    \mathbf{A} \mathbf{w} = \lambda_{\max} \mathbf{w}, \quad
+    w_i = \frac{w_i^*}{\sum_{k=1}^{n} w_k^*}
+    \label{eq:ahp_eigenvector}
+\end{equation}
+
+\textbf{步骤三：一致性检验。} 计算一致性指标 $CI$ 与一致性比例 $CR$：
+\begin{equation}
+    CI = \frac{\lambda_{\max} - n}{n - 1}, \quad
+    CR = \frac{CI}{RI}
+    \label{eq:ahp_consistency}
+\end{equation}
+其中 $RI$ 为平均随机一致性指标（查表可得）。当 $CR < 0.1$ 时，认为判断矩阵具有满意的一致性。
+
+\subsubsection{判断矩阵构建}
+
+根据专家评判，本文针对 << n_criteria >> 个指标（<< criteria_names | join("、") >>）构建的判断矩阵如表~\ref{tab:ahp_judgment} 所示。
+
+\begin{table}[H]
+    \centering
+    \caption{判断矩阵 $\mathbf{A}$}
+    \label{tab:ahp_judgment}
+    \begin{tabular}{c<% for c in criteria_names %>c<% endfor %>}
+        \toprule
+         & <% for c in criteria_names %><% if not loop.first %> & <% endif %>\textbf{<< c >>}<% endfor %> \\
+        \midrule
+<% for i in range(n_criteria) %>
+        \textbf{<< criteria_names[i] >>} & <% for j in range(n_criteria) %><% if not loop.first %> & <% endif %><< "%.4f" | format(judgment_matrix[i][j]) >><% endfor %> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+<% if judgment_heatmap_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{<< judgment_heatmap_path >>}
+    \caption{判断矩阵热力图}
+    \label{fig:ahp_heatmap}
+\end{figure}
+<% endif %>
+
+\subsubsection{一致性检验}
+
+经计算，最大特征值 $\lambda_{\max} = << "%.6f" | format(max_eigenvalue) >>$，一致性指标 $CI = << "%.6f" | format(ci_value) >>$，对应 $n = << n_criteria >>$ 阶矩阵的 $RI = << "%.4f" | format(ri_value) >>$，因此：
+\begin{equation}
+    CR = \frac{CI}{RI} = \frac{<< "%.6f" | format(ci_value) >>}{<< "%.4f" | format(ri_value) >>} = << "%.6f" | format(cr_value) >>
+    <% if cr_passed %> < 0.1 <% else %> \geq 0.1 <% endif %>
+\end{equation}
+
+<% if cr_passed %>
+由于 $CR = << "%.6f" | format(cr_value) >> < 0.1$，判断矩阵通过一致性检验，权重结果可靠。
+<% else %>
+\textcolor{red}{注意：$CR = << "%.6f" | format(cr_value) >> \geq 0.1$，一致性检验未通过，需重新调整判断矩阵。}
+<% endif %>
+
+\subsubsection{AHP 权重结果}
+
+归一化后的各指标权重如表~\ref{tab:ahp_weights} 所示。
+
+\begin{table}[H]
+    \centering
+    \caption{AHP 主观权重}
+    \label{tab:ahp_weights}
+    \begin{tabular}{lc}
+        \toprule
+        \textbf{指标} & \textbf{权重} \\
+        \midrule
+<% for i in range(n_criteria) %>
+        << criteria_names[i] >> & << "%.6f" | format(ahp_weights[i]) >> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+<% if weights_bar_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{<< weights_bar_path >>}
+    \caption{AHP 指标权重分布}
+    \label{fig:ahp_weights_bar}
+\end{figure>
+<% endif %>

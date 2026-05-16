@@ -1,0 +1,158 @@
+%% ============================================================
+%% AutoEval-Modeling · 自动生成论文主模板
+%% 模板引擎: Jinja2 (block/variable 标记: <%  %> / <<  >>)
+%% ============================================================
+\documentclass[12pt, a4paper]{article}
+
+%% -------------------- 宏包 --------------------
+\usepackage[UTF8]{ctex}                 % 中文支持
+\usepackage{amsmath, amssymb, amsthm}   % 数学
+\usepackage{booktabs}                   % 三线表
+\usepackage{graphicx}                   % 图片
+\usepackage{float}                      % 浮动控制
+\usepackage{geometry}                   % 页面设置
+\usepackage{hyperref}                   % 超链接
+\usepackage{caption}                    % 图表标题
+\usepackage{subcaption}                 % 子图
+\usepackage{longtable}                  % 长表格
+\usepackage{array}                      % 表格列格式
+\usepackage{multirow}                   % 合并行
+\usepackage{xcolor}                     % 颜色
+\usepackage{enumitem}                   % 列表样式
+\usepackage{fancyhdr}                   % 页眉页脚
+\usepackage{appendix}                   % 附录
+\usepackage{listings}                   % 代码
+\usepackage{xcolor}
+
+\geometry{left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
+
+%% -------------------- 代码样式 --------------------
+\lstset{
+    language=Python,
+    basicstyle=\small\ttfamily,
+    keywordstyle=\color{blue}\bfseries,
+    commentstyle=\color{gray},
+    stringstyle=\color{red},
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    frame=single,
+    breaklines=true,
+    captionpos=b
+}
+
+%% -------------------- 页眉页脚 --------------------
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[C]{<< title >>}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+%% -------------------- 标题 --------------------
+\title{\textbf{<< title >>}}
+\author{<< author | default("AutoEval-Modeling 自动生成") >>}
+\date{<< date | default("\\today") >>}
+
+\begin{document}
+
+\maketitle
+
+%% ==================== 摘要 ====================
+\begin{abstract}
+<< abstract_content >>
+
+\textbf{关键词：}<< keywords | join("；") >>
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%% ==================== 一、问题重述 ====================
+\section{问题重述}
+
+\subsection{问题背景}
+<< problem_background >>
+
+\subsection{问题要求}
+<< problem_requirements >>
+
+%% ==================== 二、问题分析 ====================
+\section{问题分析}
+<< problem_analysis >>
+
+%% ==================== 三、模型假设 ====================
+\section{模型假设}
+\begin{enumerate}[label=(\arabic*)]
+<% for assumption in assumptions %>
+    \item << assumption >>
+<% endfor %>
+\end{enumerate}
+
+%% ==================== 四、符号说明 ====================
+\section{符号说明}
+\begin{table}[H]
+    \centering
+    \caption{主要符号说明}
+    \label{tab:symbols}
+    \begin{tabular}{cl}
+        \toprule
+        \textbf{符号} & \textbf{含义} \\
+        \midrule
+<% for sym in symbols %>
+        $<< sym.notation >>$ & << sym.description >> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+%% ==================== 五、数据预处理 ====================
+\section{数据预处理}
+<< preprocessing_content >>
+
+%% ==================== 六、模型建立与求解 ====================
+\section{模型建立与求解}
+
+<% for section in model_sections %>
+<< section >>
+<% endfor %>
+
+%% ==================== 七、灵敏度分析 ====================
+<% if sensitivity_content %>
+\section{灵敏度分析}
+<< sensitivity_content >>
+<% endif %>
+
+%% ==================== 八、模型评价与改进 ====================
+\section{模型评价与改进}
+
+\subsection{模型优点}
+\begin{enumerate}[label=(\arabic*)]
+<% for pro in model_pros %>
+    \item << pro >>
+<% endfor %>
+\end{enumerate}
+
+\subsection{模型缺点与改进方向}
+\begin{enumerate}[label=(\arabic*)]
+<% for con in model_cons %>
+    \item << con >>
+<% endfor %>
+\end{enumerate}
+
+%% ==================== 参考文献 ====================
+\newpage
+\begin{thebibliography}{99}
+<% for ref in references %>
+    \bibitem{<< ref.key >>} << ref.text >>
+<% endfor %>
+\end{thebibliography}
+
+%% ==================== 附录 ====================
+<% if appendix_content %>
+\newpage
+\begin{appendices}
+\section{核心代码}
+<< appendix_content >>
+\end{appendices}
+<% endif %>
+
+\end{document}

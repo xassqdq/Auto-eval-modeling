@@ -1,0 +1,1902 @@
+{# ================================================================== #}
+{# templates/python/script_template.py.j2                             #}
+{# AutoEval-Modeling — 完整评价脚本骨架模板                            #}
+{#                                                                      #}
+{# 渲染此模板 + function_blocks.py.j2 → 独立可执行 Python 评价脚本    #}
+{#                                                                      #}
+{# 完整渲染上下文 (render context) 结构：                              #}
+{# {                                                                    #}
+{#   meta        : {project_name, generated_at, author,                #}
+{#                  version, description, config_source}                #}
+{#   config      : {data_file, file_type, encoding, sheet_name,        #}
+{#                  eval_objects_col, indicator_cols, indicator_names,  #}
+{#                  indicator_directions, moderate_opts,                #}
+{#                  output_dir, lang, fig_format, fig_dpi}              #}
+{#   preprocessing: {handle_missing, missing_strategy,                 #}
+{#                   handle_outliers, outlier_method,                   #}
+{#                   normalize_method, check_correlation,               #}
+{#                   correlation_threshold, use_pca, pca_variance}      #}
+{#   weights     : {method, objective_methods, ahp_matrix,             #}
+{#                  expert_weights, combination_coef}                   #}
+{#   evaluation  : {model, models, vikor_v, gra_rho}                   #}
+{#   sensitivity : {enabled, perturbation_range, steps}                #}
+{#   output      : {save_csv, save_figures, show_plots, verbose}        #}
+{#   -- 由 code_builder 预处理的布尔标志 --                             #}
+{#   use_ahp / use_entropy / use_critic / use_stddev                   #}
+{#   use_combination_weights                                            #}
+{#   use_topsis / use_vikor / use_gra / use_fuzzy / use_rsr            #}
+{#   use_pca / use_sensitivity / use_multiple_models                    #}
+{# }                                                                    #}
+{# ================================================================== #}
+
+{# ──────────────────────────────────────────────────────────────── #}
+{# 第一部分：脚本头部注释与模块文档字符串                            #}
+{# ──────────────────────────────────────────────────────────────── #}
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+╔══════════════════════════════════════════════════════════════╗
+║           AutoEval-Modeling  自动生成评价脚本               ║
+╠══════════════════════════════════════════════════════════════╣
+║  项目名称  : {{ meta.project_name }}
+║  生成时间  : {{ meta.generated_at }}
+║  生成工具  : AutoEval-Modeling v{{ meta.version }}
+║  配置来源  : {{ meta.config_source }}
+║  脚本描述  : {{ meta.description }}
+╠══════════════════════════════════════════════════════════════╣
+║  评价对象  : {{ config.eval_objects_col }} 列
+║  指标数量  : {{ config.indicator_cols | length }} 个
+║  赋权方法  : {{ weights.method }}
+║  评价模型  : {{ evaluation.model }}
+╠══════════════════════════════════════════════════════════════╣
+║  依赖库    : numpy, pandas, matplotlib, seaborn, scipy
+║             scikit-learn{% if use_ahp %}, (AHP 内置){% endif %}
+║  运行命令  : python {{ meta.project_name | replace(' ','_') | lower }}_eval.py
+╚══════════════════════════════════════════════════════════════╝
+
+生成的评价指标
+--------------
+{% for name in config.indicator_names %}
+  [{{ loop.index }}] {{ name }}
+      方向: {% if config.indicator_directions[loop.index0] == 1 %}正向（越大越好）
+      {% elif config.indicator_directions[loop.index0] == -1 %}负向（越小越好）
+      {% else %}适度型（存在最优值）{% endif %}
+{% endfor %}
+
+工作流步骤
+----------
+{% for step in workflow_steps %}
+  Step {{ loop.index }}: {{ step }}
+{% endfor %}
+"""
+
+{# ──────────────────────────────────────────────────────────────── #}
+{# 第二部分：Import 语句（根据选用算法条件导入）                     #}
+{# ──────────────────────────────────────────────────────────────── #}
+# ================================================================
+# 标准库 / 第三方依赖
+# ================================================================
+from __future__ import annotations
+
+import os
+import sys
+import json
+import warnings
+import traceback
+import logging
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+warnings.filterwarnings("ignore")
+
+# —— 核心科学计算 ——
+import numpy as np
+import pandas as pd
+import scipy.stats as stats
+
+# —— 可视化 ——
+import matplotlib
+matplotlib.use("Agg")  # 非交互后端，防止无 GUI 环境报错
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+{% if output.show_plots %}
+matplotlib.use("TkAgg")  # 若需显示图窗，切换回交互后端
+{% endif %}
+import seaborn as sns
+{% if use_pca %}
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+{% endif %}
+{% if use_fuzzy %}
+# 模糊综合评价（内置实现，无需额外依赖）
+pass
+{% endif %}
+
+# —— 可视化全局样式设置 ——
+plt.rcParams.update({
+    "font.family":        ["DejaVu Sans", "SimHei", "Arial Unicode MS"],
+    "axes.unicode_minus": False,
+    "figure.dpi":         120,
+    "axes.spines.top":    False,
+    "axes.spines.right":  False,
+    "axes.grid":          True,
+    "grid.alpha":         0.35,
+})
+sns.set_palette("muted")
+
+
+{# ──────────────────────────────────────────────────────────────── #}
+{# 第三部分：全局配置常量（由模板渲染注入）                           #}
+{# ──────────────────────────────────────────────────────────────── #}
+# ================================================================
+# 配置常量（由 AutoEval-Modeling 自动注入，勿手动修改此节）
+# ================================================================
+
+# —— 数据配置 ——
+DATA_FILE          = r"{{ config.data_file }}"
+EVAL_OBJECTS_COL   = "{{ config.eval_objects_col }}"
+INDICATOR_COLS     = {{ config.indicator_cols | tojson }}
+INDICATOR_NAMES    = {{ config.indicator_names | tojson }}
+INDICATOR_DIRS     = {{ config.indicator_directions | tojson }}
+{# 适度型指标的最优值，None 表示取均值 #}
+MODERATE_OPTS      = {{ config.moderate_opts | tojson }}
+
+# —— 输出配置 ——
+OUTPUT_DIR         = r"{{ config.output_dir }}"
+FIG_FORMAT         = "{{ config.fig_format }}"
+FIG_DPI            = {{ config.fig_dpi }}
+LANG               = "{{ config.lang }}"  # "zh" 或 "en"
+
+# —— 预处理配置 ——
+MISSING_STRATEGY   = "{{ preprocessing.missing_strategy }}"  # mean/median/drop/interpolate
+NORMALIZE_METHOD   = "{{ preprocessing.normalize_method }}"  # minmax/zscore/vector
+CORR_THRESHOLD     = {{ preprocessing.correlation_threshold }}
+
+# —— 赋权配置 ——
+WEIGHT_METHOD      = "{{ weights.method }}"
+{% if use_ahp and weights.ahp_matrix is not none %}
+AHP_MATRIX = np.array({{ weights.ahp_matrix | tojson }})
+{% endif %}
+{% if weights.expert_weights is not none %}
+EXPERT_WEIGHTS = np.array({{ weights.expert_weights | tojson }})
+{% endif %}
+{% if use_combination_weights and weights.combination_coef is not none %}
+COMBINATION_COEF = {{ weights.combination_coef | tojson }}
+{% endif %}
+
+# —— 评价模型配置 ——
+EVAL_MODEL         = "{{ evaluation.model }}"
+{% if use_vikor %}
+VIKOR_V            = {{ evaluation.vikor_v }}   # VIKOR 决策者偏好系数 v ∈ [0,1]
+{% endif %}
+{% if use_gra %}
+GRA_RHO            = {{ evaluation.gra_rho }}   # 灰色关联分辨系数 ρ ∈ (0,1]
+{% endif %}
+
+# —— 灵敏度分析配置 ——
+{% if use_sensitivity %}
+SENSITIVITY_RANGE  = {{ sensitivity.perturbation_range }}   # 权重扰动比例 ±10%
+SENSITIVITY_STEPS  = {{ sensitivity.steps }}                # 扰动步数
+{% endif %}
+
+# —— 运行控制 ——
+SAVE_CSV           = {{ output.save_csv | lower }}
+SAVE_FIGURES       = {{ output.save_figures | lower }}
+SHOW_PLOTS         = {{ output.show_plots | lower }}
+VERBOSE            = {{ output.verbose | lower }}
+
+
+{# ──────────────────────────────────────────────────────────────── #}
+{# 第四部分：工具函数区（由 function_blocks.py.j2 渲染内容注入）     #}
+{# ──────────────────────────────────────────────────────────────── #}
+# ================================================================
+# 工具函数区（通用 I/O、显示、数学辅助）
+# ================================================================
+
+{% include 'function_blocks.py.j2' %}
+
+
+{# ──────────────────────────────────────────────────────────────── #}
+{# 第五部分：数据预处理函数                                          #}
+{# ──────────────────────────────────────────────────────────────── #}
+# ================================================================
+# 数据预处理模块
+# ================================================================
+
+def handle_missing_values(
+    data_matrix: np.ndarray,
+    indicator_names: List[str],
+    strategy: str = MISSING_STRATEGY,
+    threshold: float = 0.30,
+    logger: Optional[logging.Logger] = None,
+) -> np.ndarray:
+    """
+    缺失值处理。
+
+    策略说明
+    --------
+    mean        : 用各列均值填充（连续型指标推荐）
+    median      : 用各列中位数填充（含异常值时更稳健）
+    drop        : 删除含缺失值的行
+    interpolate : 线性插值（适用于有序样本）
+
+    Parameters
+    ----------
+    threshold : 若某列缺失率超过此阈值则发出强警告
+
+    Returns
+    -------
+    np.ndarray : 处理后的数据矩阵（无缺失值）
+    """
+    _log = logger.info if logger else print
+    missing_count = np.isnan(data_matrix).sum()
+
+    if missing_count == 0:
+        _log("  ✅ 无缺失值，跳过缺失值处理步骤")
+        return data_matrix.copy()
+
+    _log(f"  发现缺失值: {missing_count} 个，策略: {strategy}")
+    X = data_matrix.copy()
+    n_cols = X.shape[1]
+
+    # 高缺失率列警告
+    for j in range(n_cols):
+        col_missing_rate = np.isnan(X[:, j]).mean()
+        if col_missing_rate > threshold:
+            _log(
+                f"  ⚠  指标 '{indicator_names[j]}' 缺失率 "
+                f"{col_missing_rate:.1%} > {threshold:.0%}，建议检查数据来源"
+            )
+
+    if strategy == "mean":
+        col_means = np.nanmean(X, axis=0)
+        for j in range(n_cols):
+            mask = np.isnan(X[:, j])
+            X[mask, j] = col_means[j]
+
+    elif strategy == "median":
+        col_medians = np.nanmedian(X, axis=0)
+        for j in range(n_cols):
+            mask = np.isnan(X[:, j])
+            X[mask, j] = col_medians[j]
+
+    elif strategy == "drop":
+        valid_rows = ~np.isnan(X).any(axis=1)
+        X = X[valid_rows]
+        _log(f"  删除含缺失值的行后，剩余样本数: {X.shape[0]}")
+
+    elif strategy == "interpolate":
+        df_temp = pd.DataFrame(X)
+        df_temp = df_temp.interpolate(method="linear", limit_direction="both")
+        X = df_temp.values
+
+    else:
+        raise ValueError(f"不支持的缺失值处理策略: '{strategy}'")
+
+    _log(f"  缺失值处理完成，剩余缺失: {np.isnan(X).sum()} 个")
+    return X
+
+
+{% if preprocessing.handle_outliers %}
+def handle_outliers(
+    data_matrix: np.ndarray,
+    indicator_names: List[str],
+    method: str = "{{ preprocessing.outlier_method }}",
+    threshold: float = 3.0,
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[np.ndarray, Dict[str, List[int]]]:
+    """
+    异常值检测与处理（截断法：将异常值替换为边界值）。
+
+    方法
+    ----
+    iqr    : 四分位距法，边界 = Q1 - 1.5·IQR 至 Q3 + 1.5·IQR
+    zscore : Z-score 法，|z| > threshold 的点视为异常
+
+    Returns
+    -------
+    X_clean      : 处理后矩阵
+    outlier_info : dict {指标名: [异常值所在行索引]}
+    """
+    _log = logger.info if logger else print
+    X = data_matrix.copy()
+    n_rows, n_cols = X.shape
+    outlier_info: Dict[str, List[int]] = {}
+
+    for j in range(n_cols):
+        col = X[:, j]
+        if method == "iqr":
+            q1, q3 = np.nanpercentile(col, 25), np.nanpercentile(col, 75)
+            iqr = q3 - q1
+            lower, upper = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+        else:  # zscore
+            mu, sigma = np.nanmean(col), np.nanstd(col)
+            lower = mu - threshold * sigma
+            upper = mu + threshold * sigma
+
+        outlier_idx = np.where((col < lower) | (col > upper))[0].tolist()
+        if outlier_idx:
+            outlier_info[indicator_names[j]] = outlier_idx
+            X[:, j] = np.clip(col, lower, upper)  # 截断至边界值
+            _log(
+                f"  [异常值] 指标 '{indicator_names[j]}' "
+                f"发现 {len(outlier_idx)} 个异常，已截断至 [{lower:.3f}, {upper:.3f}]"
+            )
+
+    if not outlier_info:
+        _log("  ✅ 未发现显著异常值")
+    return X, outlier_info
+{% endif %}
+
+
+def directionalize(
+    data_matrix: np.ndarray,
+    directions: List[int],
+    moderate_opts: Optional[List[Optional[float]]] = None,
+) -> np.ndarray:
+    """
+    指标正向化处理（统一为"越大越好"方向）。
+
+    正向化规则
+    ----------
+    正向型 (+1) : 保持原值（不变）
+    负向型 (-1) : 取倒数或 max - x 变换（使用 max - x + min）
+    适度型 ( 0) : M - |x - x*|，x* 为最优值（默认取均值）
+
+    Parameters
+    ----------
+    moderate_opts : 适度型指标的最优值列表；None 则对应列取均值
+
+    Returns
+    -------
+    np.ndarray : 正向化后的数据矩阵（所有指标均"越大越好"）
+    """
+    X = data_matrix.copy().astype(float)
+    n_rows, n_cols = X.shape
+
+    for j in range(n_cols):
+        col = X[:, j]
+        d = directions[j]
+
+        if d == 1:
+            pass  # 正向型，无需处理
+
+        elif d == -1:
+            # 负向型：max(col) - col + min(col) 保持非负且值域对称
+            X[:, j] = col.max() - col + col.min()
+
+        elif d == 0:
+            # 适度型：M - |x - x*|
+            opt = (
+                moderate_opts[j]
+                if moderate_opts and moderate_opts[j] is not None
+                else float(np.nanmean(col))
+            )
+            diff = np.abs(col - opt)
+            M = diff.max()
+            X[:, j] = M - diff  # 越接近 x* 越大
+
+    return X
+
+
+def normalize_matrix(
+    data_matrix: np.ndarray,
+    method: str = NORMALIZE_METHOD,
+) -> np.ndarray:
+    """
+    归一化处理（在正向化后的矩阵上执行）。
+
+    方法
+    ----
+    minmax  : x' = (x - min) / (max - min)，值域 [0, 1]
+    zscore  : x' = (x - μ) / σ，标准正态分布变换
+    vector  : x' = x / ||x||，向量长度归一化（TOPSIS 标准形式）
+    sum     : x' = x / sum(x)，概率归一化
+
+    Returns
+    -------
+    np.ndarray : 归一化矩阵，与输入 shape 相同
+    """
+    X = data_matrix.copy().astype(float)
+    n_rows, n_cols = X.shape
+
+    for j in range(n_cols):
+        col = X[:, j]
+        if method == "minmax":
+            c_min, c_max = col.min(), col.max()
+            X[:, j] = safe_divide(col - c_min, c_max - c_min, fill_value=0.0)
+
+        elif method == "zscore":
+            mu, sigma = col.mean(), col.std()
+            X[:, j] = safe_divide(col - mu, sigma, fill_value=0.0)
+
+        elif method == "vector":
+            norm = np.sqrt((col ** 2).sum())
+            X[:, j] = safe_divide(col, norm, fill_value=0.0)
+
+        elif method == "sum":
+            s = col.sum()
+            X[:, j] = safe_divide(col, s, fill_value=1.0 / n_rows)
+
+        else:
+            raise ValueError(f"不支持的归一化方法: '{method}'")
+
+    return X
+
+
+{% if preprocessing.use_pca %}
+# ------------------------------------------------------------------
+# PCA 降维（当指标间相关性过强时启用）
+# ------------------------------------------------------------------
+
+def apply_pca(
+    data_matrix: np.ndarray,
+    indicator_names: List[str],
+    n_components: Optional[int] = None,
+    variance_ratio: float = {{ preprocessing.pca_variance }},
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[np.ndarray, PCA, List[str], pd.DataFrame]:
+    """
+    对指标矩阵执行 PCA 降维。
+
+    Parameters
+    ----------
+    n_components   : 指定主成分数；None 则按 variance_ratio 自动确定
+    variance_ratio : 累计方差贡献率阈值（默认 {{ preprocessing.pca_variance }}）
+
+    Returns
+    -------
+    X_pca          : 降维后矩阵
+    pca_model      : 拟合好的 PCA 模型（可用于 transform 新数据）
+    pc_names       : 主成分名称列表，如 ["PC1", "PC2", ...]
+    loadings_df    : 载荷矩阵 DataFrame（原始指标 × 主成分）
+    """
+    _log = logger.info if logger else print
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(data_matrix)
+
+    # 先拟合全部主成分以绘制碎石图
+    pca_full = PCA()
+    pca_full.fit(X_scaled)
+    cum_var = np.cumsum(pca_full.explained_variance_ratio_)
+
+    if n_components is None:
+        n_components = int(np.searchsorted(cum_var, variance_ratio)) + 1
+        _log(
+            f"  PCA：保留累计方差 >= {variance_ratio:.0%} 所需主成分数 = {n_components}"
+        )
+
+    pca_model = PCA(n_components=n_components)
+    X_pca = pca_model.fit_transform(X_scaled)
+    pc_names = [f"PC{i+1}" for i in range(n_components)]
+
+    var_ratios = pca_model.explained_variance_ratio_
+    _log(f"  各主成分方差贡献率: {[f'{r:.3f}' for r in var_ratios]}")
+    _log(f"  累计方差贡献率: {var_ratios.sum():.3f}")
+
+    # 载荷矩阵
+    loadings_df = pd.DataFrame(
+        pca_model.components_.T,
+        index=indicator_names,
+        columns=pc_names,
+    )
+
+    return X_pca, pca_model, pc_names, loadings_df
+{% endif %}
+
+
+{# ──────────────────────────────────────────────────────────────── #}
+{# 第六部分：赋权方法函数（按选用算法条件生成）                       #}
+{# ──────────────────────────────────────────────────────────────── #}
+# ================================================================
+# 赋权方法模块
+# ================================================================
+
+{% if use_entropy %}
+def entropy_weight(
+    X_norm: np.ndarray,
+    indicator_names: List[str],
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[np.ndarray, pd.DataFrame]:
+    """
+    熵权法（Entropy Weight Method）计算客观权重。
+
+    数学原理
+    --------
+    1. 构造概率矩阵：p_ij = x_ij / Σ_i(x_ij)
+    2. 计算信息熵：e_j = -1/ln(m) * Σ_i(p_ij · ln(p_ij))
+    3. 差异系数：d_j = 1 - e_j
+    4. 归一化权重：w_j = d_j / Σ_j(d_j)
+
+    Parameters
+    ----------
+    X_norm : 已正向化且归一化的数据矩阵，shape=(m, n)
+             要求所有元素 > 0（若含 0 会自动平移处理）
+
+    Returns
+    -------
+    weights    : 权重向量，shape=(n,)
+    detail_df  : 详细计算过程 DataFrame
+                 列：指标名 | 信息熵 | 差异系数 | 权重
+    """
+    _log = logger.info if logger else print
+    m, n = X_norm.shape
+    X = X_norm.copy().astype(float)
+
+    # 确保非负：若有 ≤ 0 的元素，整体平移至严格正数区间
+    col_min = X.min(axis=0)
+    shift = np.where(col_min <= 0, -col_min + 1e-6, 0)
+    X += shift
+
+    # —— Step 1: 概率矩阵 ——
+    col_sums = X.sum(axis=0)
+    P = safe_divide(X, col_sums[np.newaxis, :], fill_value=1.0 / m)
+
+    # —— Step 2: 信息熵 ——
+    ln_P = np.where(P > 0, np.log(P), 0.0)
+    entropy = -np.sum(P * ln_P, axis=0) / np.log(m)
+
+    # —— Step 3 & 4: 差异系数与权重 ——
+    diversity = 1.0 - entropy
+    weights = normalize_weights(diversity)
+
+    detail_df = pd.DataFrame({
+        "指标":     indicator_names,
+        "信息熵 e": np.round(entropy, 6),
+        "差异系数": np.round(diversity, 6),
+        "权重 w":   np.round(weights, 6),
+    })
+
+    _log("\n  熵权法计算完成:")
+    print(detail_df.to_string(index=False))
+    return weights, detail_df
+{% endif %}
+
+
+{% if use_critic %}
+def critic_weight(
+    X_norm: np.ndarray,
+    indicator_names: List[str],
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[np.ndarray, pd.DataFrame]:
+    """
+    CRITIC 法（Criteria Importance Through Intercriteria Correlation）。
+
+    数学原理
+    --------
+    1. 对比强度（标准差）：σ_j = std(x_j)
+    2. 冲突性（相关性）  ：r_jk = corr(x_j, x_k)
+       信息量 C_j = σ_j · Σ_k(1 - r_jk)
+    3. 权重：w_j = C_j / Σ_j(C_j)
+
+    Returns
+    -------
+    weights    : 权重向量
+    detail_df  : 含标准差、信息量、权重的详细 DataFrame
+    """
+    _log = logger.info if logger else print
+    m, n = X_norm.shape
+
+    # —— 标准差（对比强度）——
+    sigma = X_norm.std(axis=0, ddof=1)
+
+    # —— 相关系数矩阵（冲突性）——
+    R = np.corrcoef(X_norm.T)
+
+    # —— 信息量 ——
+    conflict = np.sum(1.0 - np.abs(R), axis=0)  # 各列与其余列绝对相关差之和
+    C = sigma * conflict
+
+    # —— 权重 ——
+    weights = normalize_weights(C)
+
+    detail_df = pd.DataFrame({
+        "指标":      indicator_names,
+        "标准差 σ":  np.round(sigma, 4),
+        "信息量 C":  np.round(C, 4),
+        "权重 w":    np.round(weights, 6),
+    })
+
+    _log("\n  CRITIC 法计算完成:")
+    print(detail_df.to_string(index=False))
+    return weights, detail_df
+{% endif %}
+
+
+{% if use_stddev %}
+def stddev_weight(
+    X_norm: np.ndarray,
+    indicator_names: List[str],
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[np.ndarray, pd.DataFrame]:
+    """
+    标准离差法：以各指标标准差的相对比例作为权重。
+
+    适用场景：数据量足够且无需考虑指标间相关性时，
+             作为熵权法的简化替代。
+    """
+    sigma = X_norm.std(axis=0, ddof=1)
+    weights = normalize_weights(sigma)
+    detail_df = pd.DataFrame({
+        "指标":    indicator_names,
+        "标准差":  np.round(sigma, 4),
+        "权重 w":  np.round(weights, 6),
+    })
+    _log = logger.info if logger else print
+    _log("\n  标准离差法计算完成:")
+    print(detail_df.to_string(index=False))
+    return weights, detail_df
+{% endif %}
+
+
+{% if use_ahp %}
+def ahp_weight(
+    matrix: np.ndarray,
+    indicator_names: List[str],
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[np.ndarray, float, float, bool]:
+    """
+    层次分析法（Analytic Hierarchy Process）主观赋权。
+
+    方法：算术平均法求特征向量（近似权重）
+
+    数学步骤
+    --------
+    1. 列归一化：a'_ij = a_ij / Σ_i(a_ij)
+    2. 行平均：w_j = mean_i(a'_ij)（即特征向量近似）
+    3. 计算最大特征值：λ_max = (1/n) Σ_j( (A·w)_j / w_j )
+    4. 一致性检验：CI = (λ_max - n)/(n-1)，CR = CI/RI
+
+    Parameters
+    ----------
+    matrix : n×n 正互反判断矩阵（满足 a_ij * a_ji = 1）
+
+    Returns
+    -------
+    weights : 权重向量
+    ci      : 一致性指标 CI
+    cr      : 一致性比率 CR（< 0.10 视为可接受）
+    passed  : 是否通过一致性检验
+    """
+    _log = logger.info if logger else print
+    n = matrix.shape[0]
+
+    # —— 列归一化 ——
+    col_sums = matrix.sum(axis=0)
+    norm_matrix = matrix / col_sums[np.newaxis, :]
+
+    # —— 权重（行平均）——
+    weights = norm_matrix.mean(axis=1)
+    weights = normalize_weights(weights)
+
+    # —— λ_max ——
+    Aw = matrix @ weights
+    lambda_vec = Aw / (weights + 1e-12)
+    lambda_max = float(lambda_vec.mean())
+
+    # —— 一致性检验 ——
+    ci, cr, passed = check_ahp_consistency(matrix)
+
+    _log(f"\n  AHP 判断矩阵维度: {n}×{n}")
+    _log(f"  λ_max = {lambda_max:.4f}")
+    _log(f"  CI = {ci:.4f},  CR = {cr:.4f}  {'✅ 通过' if passed else '⚠️  未通过（CR≥0.10）'}")
+    if not passed:
+        _log("  建议: 请检查判断矩阵的内部一致性，调整专家打分")
+
+    print_weights_table(weights, indicator_names, "AHP层次分析法")
+    return weights, ci, cr, passed
+{% endif %}
+
+
+{% if use_combination_weights %}
+def combine_weights(
+    weights_list: List[np.ndarray],
+    method_names: List[str],
+    coef: Optional[List[float]] = None,
+    method: str = "linear",
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[np.ndarray, pd.DataFrame]:
+    """
+    组合赋权：将多个权重向量合成一组综合权重。
+
+    合成方法
+    --------
+    linear         : 线性加权 w = Σ α_k · w_k
+    multiplicative : 乘法合成 w_j = Π(w_kj^α_k)，再归一化
+    min_deviation  : 基于最小偏差原则，最小化各单一权重与组合权重的加权偏差
+
+    Parameters
+    ----------
+    weights_list : 多个单一权重向量的列表
+    method_names : 各权重向量对应的方法名称（用于表格展示）
+    coef         : 合成系数（各权重的重要程度）；None → 等权合成
+    method       : 合成方法
+
+    Returns
+    -------
+    combined     : 组合权重向量
+    compare_df   : 各方法权重对比 DataFrame
+    """
+    _log = logger.info if logger else print
+    K = len(weights_list)
+    n = len(weights_list[0])
+
+    if coef is None:
+        coef = [1.0 / K] * K
+    alpha = np.array(coef, dtype=float)
+    alpha /= alpha.sum()  # 确保系数归一化
+
+    if method == "linear":
+        W = np.array(weights_list)       # shape (K, n)
+        combined = alpha @ W             # shape (n,)
+
+    elif method == "multiplicative":
+        log_W = np.array([np.log(w + 1e-12) for w in weights_list])
+        combined = np.exp(alpha @ log_W)
+
+    elif method == "min_deviation":
+        # 基于离差最小化模型（闭式解）：
+        # min Σ_k Σ_j (w_j - w_kj)^2
+        # 等价于取各方法权重的等权平均（无监督时）
+        combined = np.array(weights_list).mean(axis=0)
+
+    else:
+        raise ValueError(f"不支持的组合方法: '{method}'")
+
+    combined = normalize_weights(combined)
+
+    # —— 对比表格 ——
+    rows = {}
+    for k, (w, name) in enumerate(zip(weights_list, method_names)):
+        rows[name] = np.round(w, 6)
+    rows["组合权重"] = np.round(combined, 6)
+    compare_df = pd.DataFrame(rows).T
+    compare_df.columns = [f"指标{i+1}" for i in range(n)]
+
+    _log(f"\n  组合赋权完成（{method}）:")
+    print(compare_df.to_string())
+    return combined, compare_df
+{% endif %}
+
+
+{# ──────────────────────────────────────────────────────────────── #}
+{# 第七部分：综合评价模型（按选用算法条件生成）                       #}
+{# ──────────────────────────────────────────────────────────────── #}
+# ================================================================
+# 综合评价模型模块
+# ================================================================
+
+{% if use_topsis %}
+def topsis(
+    X_norm: np.ndarray,
+    weights: np.ndarray,
+    objects: np.ndarray,
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[np.ndarray, pd.DataFrame]:
+    """
+    TOPSIS（Technique for Order Preference by Similarity to Ideal Solution）。
+
+    数学步骤
+    --------
+    1. 加权规范化矩阵：V = X_norm · diag(w)
+    2. 正理想解：V⁺_j = max_i(V_ij)
+       负理想解：V⁻_j = min_i(V_ij)
+    3. 欧氏距离：D⁺_i = ||V_i - V⁺||₂，D⁻_i = ||V_i - V⁻||₂
+    4. 相对贴近度：C_i = D⁻_i / (D⁺_i + D⁻_i)，越大越优
+
+    Returns
+    -------
+    scores     : 相对贴近度数组，shape=(n_objects,)
+    result_df  : 含 D+、D-、贴近度、排名的结果 DataFrame
+    """
+    _log = logger.info if logger else print
+
+    # —— Step 1: 加权矩阵 ——
+    V = X_norm * weights[np.newaxis, :]
+
+    # —— Step 2: 理想解 ——
+    V_pos = V.max(axis=0)   # 正理想解（各指标最大值）
+    V_neg = V.min(axis=0)   # 负理想解（各指标最小值）
+
+    # —— Step 3: 距离 ——
+    D_pos = np.sqrt(((V - V_pos) ** 2).sum(axis=1))
+    D_neg = np.sqrt(((V - V_neg) ** 2).sum(axis=1))
+
+    # —— Step 4: 相对贴近度 ——
+    scores = safe_divide(D_neg, D_pos + D_neg, fill_value=0.0)
+
+    # —— 排名（贴近度越大排名越高）——
+    ranks = pd.Series(scores).rank(ascending=False).astype(int).values
+    result_df = pd.DataFrame({
+        "评价对象":  objects,
+        "D+":        np.round(D_pos, 4),
+        "D-":        np.round(D_neg, 4),
+        "贴近度 C":  np.round(scores, 4),
+        "排名":      ranks,
+    }).sort_values("排名").reset_index(drop=True)
+
+    print_ranking_table(objects, scores, "TOPSIS")
+    return scores, result_df
+{% endif %}
+
+
+{% if use_vikor %}
+def vikor(
+    X_norm: np.ndarray,
+    weights: np.ndarray,
+    objects: np.ndarray,
+    v: float = VIKOR_V,
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[np.ndarray, pd.DataFrame]:
+    """
+    VIKOR（VlseKriterijumska Optimizacija i Kompromisno Resenje）。
+
+    数学步骤
+    --------
+    1. 正理想解 f*_j = max_i(x_ij)，负理想解 f⁻_j = min_i(x_ij)
+    2. 加权最大效用：S_i = Σ_j w_j(f*_j - x_ij)/(f*_j - f⁻_j)
+       加权最大遗憾：R_i = max_j[w_j(f*_j - x_ij)/(f*_j - f⁻_j)]
+    3. 综合指标：Q_i = v(S_i-S*)/(S⁻-S*) + (1-v)(R_i-R*)/(R⁻-R*)
+       v=0.5 表示"多数准则"权重与"最小遗憾"权重平衡
+
+    Parameters
+    ----------
+    v : 决策者偏好系数，v∈[0,1]，越大表示越强调多数准则
+
+    Returns
+    -------
+    Q          : 综合指标向量（越小越优）
+    result_df  : 含 S、R、Q 和排名的 DataFrame
+    """
+    _log = logger.info if logger else print
+    m, n = X_norm.shape
+
+    f_star = X_norm.max(axis=0)
+    f_neg  = X_norm.min(axis=0)
+    denom  = f_star - f_neg
+    denom  = np.where(np.abs(denom) < 1e-12, 1e-12, denom)
+
+    # 标准化差距矩阵
+    gap = (f_star[np.newaxis, :] - X_norm) / denom[np.newaxis, :]
+    weighted_gap = weights[np.newaxis, :] * gap
+
+    S = weighted_gap.sum(axis=1)
+    R = weighted_gap.max(axis=1)
+
+    S_star, S_neg = S.min(), S.max()
+    R_star, R_neg = R.min(), R.max()
+
+    Q = (
+        v * safe_divide(S - S_star, S_neg - S_star)
+        + (1 - v) * safe_divide(R - R_star, R_neg - R_star)
+    )
+
+    ranks = pd.Series(Q).rank(ascending=True).astype(int).values
+    result_df = pd.DataFrame({
+        "评价对象": objects,
+        "S 效用度": np.round(S, 4),
+        "R 遗憾度": np.round(R, 4),
+        "Q 综合":   np.round(Q, 4),
+        "排名":     ranks,
+    }).sort_values("排名").reset_index(drop=True)
+
+    _log(f"\n  VIKOR (v={v}) 计算完成")
+    print_ranking_table(objects, Q, "VIKOR Q值", ascending=True)
+    return Q, result_df
+{% endif %}
+
+
+{% if use_gra %}
+def grey_relational_analysis(
+    X_norm: np.ndarray,
+    weights: np.ndarray,
+    objects: np.ndarray,
+    rho: float = GRA_RHO,
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[np.ndarray, pd.DataFrame]:
+    """
+    灰色关联分析（Grey Relational Analysis, GRA）。
+
+    数学步骤
+    --------
+    1. 参考序列：x⁰_j = max_i(x_ij)（各指标最优值）
+    2. 差序列：Δ_ij = |x⁰_j - x_ij|
+    3. 灰色关联系数：
+       ξ_ij = (Δ_min + ρ·Δ_max) / (Δ_ij + ρ·Δ_max)
+       ρ 为分辨系数，默认 0.5
+    4. 加权灰色关联度：r_i = Σ_j(w_j · ξ_ij)
+
+    Parameters
+    ----------
+    rho : 分辨系数，越小差异越显著，默认 {{ evaluation.gra_rho }}
+
+    Returns
+    -------
+    grd        : 加权灰色关联度数组（越大越优）
+    result_df  : 含关联系数矩阵和加权度的 DataFrame
+    """
+    _log = logger.info if logger else print
+
+    # —— 参考序列 ——
+    x0 = X_norm.max(axis=0)  # shape (n,)
+
+    # —— 差序列 ——
+    delta = np.abs(X_norm - x0[np.newaxis, :])  # shape (m, n)
+
+    delta_min = delta.min()
+    delta_max = delta.max()
+
+    # —— 关联系数矩阵 ——
+    xi = (delta_min + rho * delta_max) / (delta + rho * delta_max + 1e-12)
+
+    # —— 加权关联度 ——
+    grd = xi @ weights  # shape (m,)
+
+    ranks = pd.Series(grd).rank(ascending=False).astype(int).values
+    result_df = pd.DataFrame({
+        "评价对象":   objects,
+        "灰色关联度": np.round(grd, 4),
+        "排名":       ranks,
+    }).sort_values("排名").reset_index(drop=True)
+
+    _log(f"\n  灰色关联分析 (ρ={rho}) 计算完成")
+    print_ranking_table(objects, grd, "GRA灰色关联度")
+    return grd, result_df
+{% endif %}
+
+
+{% if use_fuzzy %}
+def fuzzy_comprehensive_eval(
+    data_matrix: np.ndarray,
+    weights: np.ndarray,
+    objects: np.ndarray,
+    n_levels: int = 5,
+    level_labels: Optional[List[str]] = None,
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[np.ndarray, pd.DataFrame]:
+    """
+    模糊综合评价法（Fuzzy Comprehensive Evaluation）。
+
+    实现说明
+    --------
+    采用梯形隶属度函数将各指标归一化值映射到 n_levels 个等级，
+    通过模糊矩阵合成（最大最小合成算子或加权平均算子）得到综合评价向量，
+    以重心法反模糊化计算综合得分。
+
+    等级划分（5级示例）
+    -------------------
+    [0.0, 0.2) → 差（Level 1），[0.2, 0.4) → 较差 …… [0.8, 1.0] → 优（Level 5）
+
+    Parameters
+    ----------
+    n_levels     : 评价等级数，默认 5
+    level_labels : 等级名称，默认 ["差","较差","中","较好","优"]
+    """
+    _log = logger.info if logger else print
+    m, n = data_matrix.shape
+
+    if level_labels is None:
+        level_labels = (
+            ["差", "较差", "中", "较好", "优"]
+            if n_levels == 5
+            else [f"Level{i+1}" for i in range(n_levels)]
+        )
+
+    # —— 构建隶属度矩阵（梯形法，m 个对象 × n 个指标 × L 等级）——
+    # 等级中心点
+    centers = np.linspace(0, 1, n_levels)
+    half_width = 1.0 / (n_levels - 1) / 2 if n_levels > 1 else 0.5
+
+    def membership(x: float, c: float, hw: float) -> float:
+        """三角隶属函数"""
+        dist = abs(x - c)
+        return max(0.0, 1.0 - dist / (hw + 1e-8))
+
+    # 先对数据做列级 minmax 归一化
+    X_mm = normalize_matrix(data_matrix, method="minmax")
+
+    # 构建 R 矩阵（m × L）：对象 × 等级，通过加权平均各指标的隶属度
+    R_obj = np.zeros((m, n_levels))
+    for i in range(m):
+        for lv in range(n_levels):
+            r_vec = np.array([
+                membership(X_mm[i, j], centers[lv], half_width)
+                for j in range(n)
+            ])
+            R_obj[i, lv] = float(weights @ r_vec)
+
+    # 行归一化（确保各行和为 1）
+    row_sums = R_obj.sum(axis=1, keepdims=True)
+    R_obj = safe_divide(R_obj, row_sums, fill_value=1.0 / n_levels)
+
+    # —— 反模糊化：重心法（等级中心加权均值）——
+    scores = R_obj @ centers  # shape (m,)
+
+    ranks = pd.Series(scores).rank(ascending=False).astype(int).values
+    result_df = pd.DataFrame(
+        R_obj, columns=level_labels
+    )
+    result_df.insert(0, "评价对象", objects)
+    result_df["综合得分"] = np.round(scores, 4)
+    result_df["排名"] = ranks
+    result_df = result_df.sort_values("排名").reset_index(drop=True)
+
+    _log("\n  模糊综合评价完成")
+    print_ranking_table(objects, scores, "模糊综合评价")
+    return scores, result_df
+{% endif %}
+
+
+{% if use_rsr %}
+def rank_sum_ratio(
+    data_matrix: np.ndarray,
+    weights: np.ndarray,
+    objects: np.ndarray,
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[np.ndarray, pd.DataFrame]:
+    """
+    秩和比法（Rank Sum Ratio, RSR）综合评价。
+
+    数学步骤
+    --------
+    1. 各列升序编秩（tied rank 取平均秩）
+    2. 加权秩和比：RSR_i = Σ_j(w_j · R_ij) / m，
+       其中 m 为对象总数，R_ij 为第 i 个对象第 j 个指标的秩
+    3. 按 RSR 值由大到小排名
+
+    Returns
+    -------
+    rsr_scores : RSR 值数组
+    result_df  : 含各指标秩、加权 RSR 和排名的 DataFrame
+    """
+    _log = logger.info if logger else print
+    m, n = data_matrix.shape
+
+    # —— 各列编秩 ——
+    rank_matrix = np.zeros((m, n))
+    for j in range(n):
+        col = data_matrix[:, j]
+        rank_matrix[:, j] = pd.Series(col).rank(ascending=True, method="average").values
+
+    # —— 加权 RSR ——
+    rsr_scores = (rank_matrix @ weights) / m
+
+    ranks = pd.Series(rsr_scores).rank(ascending=False).astype(int).values
+    result_df = pd.DataFrame(
+        {"评价对象": objects, "RSR值": np.round(rsr_scores, 4), "排名": ranks}
+    ).sort_values("排名").reset_index(drop=True)
+
+    _log("\n  秩和比法计算完成")
+    print_ranking_table(objects, rsr_scores, "RSR秩和比")
+    return rsr_scores, result_df
+{% endif %}
+
+
+{# ──────────────────────────────────────────────────────────────── #}
+{# 第八部分：灵敏度分析（仅 use_sensitivity 时生成）                  #}
+{# ──────────────────────────────────────────────────────────────── #}
+{% if use_sensitivity %}
+# ================================================================
+# 灵敏度分析模块
+# ================================================================
+
+def sensitivity_analysis_oat(
+    X_norm: np.ndarray,
+    base_weights: np.ndarray,
+    indicator_names: List[str],
+    objects: np.ndarray,
+    eval_func,
+    perturb_range: float = SENSITIVITY_RANGE,
+    n_steps: int = SENSITIVITY_STEPS,
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    OAT（One-At-a-Time）权重灵敏度分析。
+
+    原理
+    ----
+    每次固定 n-1 个权重不变，单独扰动第 j 个权重在
+    [(1-δ)·w_j, (1+δ)·w_j] 范围内均匀取值（共 n_steps 步），
+    观察各评价对象得分与排名的变化程度。
+
+    Parameters
+    ----------
+    eval_func    : 评价函数 f(X_norm, weights, objects) → (scores, _)
+                   如 topsis / grey_relational_analysis 等
+    perturb_range: 扰动比例 δ，默认 ±{{ sensitivity.perturbation_range * 100:.0f }}%
+    n_steps      : 每个指标的扰动步数，默认 {{ sensitivity.steps }}
+
+    Returns
+    -------
+    score_df     : 各指标扰动下的得分变化 DataFrame
+                   shape = (n_indicators × n_steps, n_objects + 2)
+    rank_df      : 对应的排名变化 DataFrame（同 shape）
+    """
+    _log = logger.info if logger else print
+    n = len(base_weights)
+    m = X_norm.shape[0]
+    perturbations = np.linspace(1 - perturb_range, 1 + perturb_range, n_steps)
+
+    score_records: List[Dict] = []
+    rank_records:  List[Dict] = []
+
+    for j in range(n):
+        for factor in perturbations:
+            # 扰动第 j 个权重
+            w_new = base_weights.copy()
+            w_new[j] = base_weights[j] * factor
+
+            # 其余权重等比例缩放以保证 sum = 1
+            w_rest_sum = w_new.copy()
+            w_rest_sum[j] = 0.0
+            rest_scale = (1.0 - w_new[j]) / (w_rest_sum.sum() + 1e-12)
+            w_new = np.where(
+                np.arange(n) == j,
+                w_new[j],
+                w_new * rest_scale,
+            )
+            w_new = normalize_weights(w_new)
+
+            # 执行评价
+            try:
+                scores, _ = eval_func(X_norm, w_new, objects)
+            except Exception:
+                scores = np.full(m, np.nan)
+
+            s_row = {"指标": indicator_names[j], "扰动因子": round(factor, 4)}
+            r_row = {"指标": indicator_names[j], "扰动因子": round(factor, 4)}
+            for i, obj in enumerate(objects):
+                s_row[str(obj)] = round(float(scores[i]), 4)
+                r_row[str(obj)] = int(
+                    pd.Series(scores).rank(ascending=False).iloc[i]
+                )
+            score_records.append(s_row)
+            rank_records.append(r_row)
+
+    score_df = pd.DataFrame(score_records)
+    rank_df  = pd.DataFrame(rank_records)
+    _log(f"\n  灵敏度分析完成：共测试 {n} 个指标 × {n_steps} 步 = {n * n_steps} 次评价")
+    return score_df, rank_df
+{% endif %}
+
+
+{# ──────────────────────────────────────────────────────────────── #}
+{# 第九部分：可视化函数                                              #}
+{# ──────────────────────────────────────────────────────────────── #}
+# ================================================================
+# 可视化模块
+# ================================================================
+
+def plot_weights_bar(
+    weights: np.ndarray,
+    indicator_names: List[str],
+    method_name: str = "权重",
+    save_path: Optional[str] = None,
+    show: bool = SHOW_PLOTS,
+) -> plt.Figure:
+    """
+    绘制权重条形图（水平排列，按权重大小降序）。
+
+    Returns
+    -------
+    matplotlib Figure 对象
+    """
+    sort_idx = np.argsort(weights)
+    sorted_names   = [indicator_names[i] for i in sort_idx]
+    sorted_weights = weights[sort_idx]
+
+    fig, ax = plt.subplots(figsize=(8, max(4, len(weights) * 0.5)))
+    bars = ax.barh(sorted_names, sorted_weights, color=sns.color_palette("Blues_d", len(weights)))
+    ax.set_xlabel("权重值", fontsize=12)
+    ax.set_title(f"{method_name} — 指标权重分布", fontsize=14, fontweight="bold")
+
+    # 数据标签
+    for bar, val in zip(bars, sorted_weights):
+        ax.text(
+            val + 0.002, bar.get_y() + bar.get_height() / 2,
+            f"{val:.4f}", va="center", fontsize=9,
+        )
+    ax.axvline(x=1.0 / len(weights), color="red", linestyle="--",
+               alpha=0.6, label=f"均匀权重 {1/len(weights):.4f}")
+    ax.legend(fontsize=9)
+    plt.tight_layout()
+    if save_path:
+        save_figure(fig, Path(save_path).stem, str(Path(save_path).parent))
+    if show:
+        plt.show()
+    return fig
+
+
+def plot_ranking_bar(
+    scores: np.ndarray,
+    objects: np.ndarray,
+    method_name: str = "综合评价",
+    save_path: Optional[str] = None,
+    show: bool = SHOW_PLOTS,
+    ascending: bool = False,
+) -> plt.Figure:
+    """
+    绘制综合得分排名条形图（竖排，按排名由高到低）。
+    """
+    sort_idx = np.argsort(scores)[::-1] if not ascending else np.argsort(scores)
+    sorted_objs   = [str(objects[i]) for i in sort_idx]
+    sorted_scores = scores[sort_idx]
+    n = len(objects)
+    palette = sns.color_palette("RdYlGn_r" if ascending else "RdYlGn", n)
+    colors = palette[::-1] if not ascending else palette
+
+    fig, ax = plt.subplots(figsize=(max(6, n * 0.9), 5))
+    bars = ax.bar(sorted_objs, sorted_scores, color=colors, edgecolor="white", linewidth=0.8)
+    ax.set_xlabel("评价对象", fontsize=12)
+    ax.set_ylabel("综合得分", fontsize=12)
+    ax.set_title(f"{method_name} — 综合评价排名", fontsize=14, fontweight="bold")
+
+    for bar, val in zip(bars, sorted_scores):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.005,
+            f"{val:.3f}", ha="center", va="bottom", fontsize=9,
+        )
+    ax.set_ylim(0, sorted_scores.max() * 1.15)
+    plt.xticks(rotation=30, ha="right")
+    plt.tight_layout()
+    if save_path:
+        save_figure(fig, Path(save_path).stem, str(Path(save_path).parent))
+    if show:
+        plt.show()
+    return fig
+
+
+def plot_radar(
+    data_matrix_norm: np.ndarray,
+    indicator_names: List[str],
+    objects: np.ndarray,
+    top_n: int = 5,
+    save_path: Optional[str] = None,
+    show: bool = SHOW_PLOTS,
+) -> plt.Figure:
+    """
+    绘制雷达图（展示排名前 top_n 个评价对象的指标分布）。
+
+    Parameters
+    ----------
+    top_n : 展示对象数（默认前 5 个，超过 8 个时图形会拥挤）
+    """
+    n_ind = len(indicator_names)
+    angles = np.linspace(0, 2 * np.pi, n_ind, endpoint=False).tolist()
+    angles += angles[:1]   # 闭合
+
+    fig, ax = plt.subplots(figsize=(7, 7), subplot_kw={"polar": True})
+    palette = sns.color_palette("tab10", min(top_n, len(objects)))
+
+    for i in range(min(top_n, len(objects))):
+        values = data_matrix_norm[i].tolist() + data_matrix_norm[i][:1].tolist()
+        ax.plot(angles, values, "o-", linewidth=1.5, color=palette[i], label=str(objects[i]))
+        ax.fill(angles, values, alpha=0.10, color=palette[i])
+
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(indicator_names, fontsize=10)
+    ax.set_title(f"综合评价指标雷达图（Top {top_n}）", fontsize=13, fontweight="bold", pad=20)
+    ax.legend(loc="upper right", bbox_to_anchor=(1.25, 1.1), fontsize=9)
+    plt.tight_layout()
+    if save_path:
+        save_figure(fig, Path(save_path).stem, str(Path(save_path).parent))
+    if show:
+        plt.show()
+    return fig
+
+
+def plot_correlation_heatmap(
+    data_matrix: np.ndarray,
+    indicator_names: List[str],
+    save_path: Optional[str] = None,
+    show: bool = SHOW_PLOTS,
+) -> plt.Figure:
+    """
+    绘制指标相关性热力图（用于判断是否需要降维）。
+    """
+    corr_df, _ = correlation_matrix(data_matrix, indicator_names)
+    mask = np.triu(np.ones_like(corr_df, dtype=bool), k=1)
+
+    fig, ax = plt.subplots(figsize=(max(6, len(indicator_names)), max(5, len(indicator_names) * 0.8)))
+    sns.heatmap(
+        corr_df, mask=~mask, annot=True, fmt=".2f",
+        cmap="coolwarm", center=0, vmin=-1, vmax=1,
+        square=True, linewidths=0.5, ax=ax,
+        annot_kws={"size": 8},
+    )
+    ax.set_title("指标相关系数矩阵", fontsize=13, fontweight="bold")
+    plt.tight_layout()
+    if save_path:
+        save_figure(fig, Path(save_path).stem, str(Path(save_path).parent))
+    if show:
+        plt.show()
+    return fig
+
+
+{% if use_sensitivity %}
+def plot_sensitivity_curves(
+    score_df: pd.DataFrame,
+    objects: np.ndarray,
+    indicator_names: List[str],
+    method_name: str = "TOPSIS",
+    save_path: Optional[str] = None,
+    show: bool = SHOW_PLOTS,
+) -> plt.Figure:
+    """
+    绘制灵敏度分析折线图。
+
+    为每个指标的扰动画一个子图，展示各评价对象得分随权重变化的趋势。
+    """
+    n_ind = len(indicator_names)
+    n_cols = min(3, n_ind)
+    n_rows = (n_ind + n_cols - 1) // n_cols
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 5, n_rows * 4))
+    axes = np.array(axes).flatten()
+
+    palette = sns.color_palette("tab10", len(objects))
+    obj_strs = [str(o) for o in objects]
+
+    for idx, ind_name in enumerate(indicator_names):
+        ax = axes[idx]
+        sub_df = score_df[score_df["指标"] == ind_name].sort_values("扰动因子")
+
+        for i, obj in enumerate(obj_strs):
+            if obj in sub_df.columns:
+                ax.plot(
+                    sub_df["扰动因子"], sub_df[obj],
+                    marker=".", linewidth=1.5, color=palette[i],
+                    label=obj if idx == 0 else "_nolegend_",
+                )
+        ax.axvline(x=1.0, color="gray", linestyle="--", alpha=0.6)
+        ax.set_title(f"扰动指标: {ind_name}", fontsize=10)
+        ax.set_xlabel("扰动因子", fontsize=9)
+        ax.set_ylabel(f"{method_name}得分", fontsize=9)
+        ax.tick_params(labelsize=8)
+
+    # 隐藏多余子图
+    for idx in range(n_ind, len(axes)):
+        axes[idx].set_visible(False)
+
+    # 统一图例
+    handles = [
+        plt.Line2D([0], [0], color=palette[i], linewidth=2, label=obj_strs[i])
+        for i in range(len(obj_strs))
+    ]
+    fig.legend(handles=handles, loc="lower center",
+               ncol=min(6, len(obj_strs)), fontsize=9,
+               bbox_to_anchor=(0.5, -0.02))
+    fig.suptitle(f"权重灵敏度分析（{method_name}）", fontsize=14, fontweight="bold")
+    plt.tight_layout(rect=[0, 0.04, 1, 0.96])
+    if save_path:
+        save_figure(fig, Path(save_path).stem, str(Path(save_path).parent))
+    if show:
+        plt.show()
+    return fig
+{% endif %}
+
+
+{% if use_multiple_models %}
+def plot_method_comparison(
+    results_dict: Dict[str, np.ndarray],
+    objects: np.ndarray,
+    save_path: Optional[str] = None,
+    show: bool = SHOW_PLOTS,
+) -> plt.Figure:
+    """
+    绘制多评价方法排名对比热力图。
+
+    Parameters
+    ----------
+    results_dict : {方法名: 排名数组} dict
+    """
+    ranks_dict = {}
+    for method, scores in results_dict.items():
+        ranks_dict[method] = pd.Series(scores).rank(ascending=False).astype(int).values
+
+    rank_df = pd.DataFrame(ranks_dict, index=[str(o) for o in objects])
+    fig, ax = plt.subplots(figsize=(max(6, len(ranks_dict) * 1.5), max(4, len(objects) * 0.6)))
+    sns.heatmap(
+        rank_df, annot=True, fmt="d", cmap="YlOrRd_r",
+        linewidths=0.5, ax=ax, annot_kws={"size": 10},
+    )
+    ax.set_title("多方法评价排名对比", fontsize=13, fontweight="bold")
+    ax.set_xlabel("评价方法", fontsize=11)
+    ax.set_ylabel("评价对象", fontsize=11)
+    plt.tight_layout()
+    if save_path:
+        save_figure(fig, Path(save_path).stem, str(Path(save_path).parent))
+    if show:
+        plt.show()
+    return fig
+{% endif %}
+
+
+{% if preprocessing.use_pca %}
+def plot_pca_scree(
+    pca_model: "PCA",
+    save_path: Optional[str] = None,
+    show: bool = SHOW_PLOTS,
+) -> plt.Figure:
+    """绘制 PCA 碎石图（各主成分解释方差率 + 累积曲线）。"""
+    explained = pca_model.explained_variance_ratio_
+    cum_explained = np.cumsum(explained)
+    n_comp = len(explained)
+
+    fig, ax1 = plt.subplots(figsize=(max(6, n_comp * 0.8), 5))
+    ax2 = ax1.twinx()
+
+    ax1.bar(range(1, n_comp + 1), explained * 100, color="steelblue",
+            alpha=0.7, label="各主成分方差贡献率")
+    ax2.plot(range(1, n_comp + 1), cum_explained * 100, "ro-",
+             linewidth=2, label="累积方差贡献率")
+    ax2.axhline(y=85, color="gray", linestyle="--", alpha=0.6, label="85% 阈值线")
+
+    ax1.set_xlabel("主成分编号", fontsize=12)
+    ax1.set_ylabel("方差贡献率 (%)", color="steelblue", fontsize=11)
+    ax2.set_ylabel("累积贡献率 (%)", color="red", fontsize=11)
+    ax1.set_title("PCA 碎石图 — 主成分方差解释", fontsize=13, fontweight="bold")
+
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc="center right", fontsize=9)
+    plt.tight_layout()
+    if save_path:
+        save_figure(fig, Path(save_path).stem, str(Path(save_path).parent))
+    if show:
+        plt.show()
+    return fig
+{% endif %}
+
+
+{# ──────────────────────────────────────────────────────────────── #}
+{# 第十部分：主工作流函数                                            #}
+{# ──────────────────────────────────────────────────────────────── #}
+# ================================================================
+# 主工作流（Main Workflow）
+# ================================================================
+
+def run_evaluation_pipeline(logger: logging.Logger) -> Dict[str, Any]:
+    """
+    执行完整的评价工作流，返回所有中间结果与最终产物字典。
+
+    工作流步骤
+    ----------
+    {% for step in workflow_steps %}
+    Step {{ loop.index }}: {{ step }}
+    {% endfor %}
+
+    Returns
+    -------
+    results : dict，包含权重、得分、排名、图片路径等所有产物
+    """
+    results: Dict[str, Any] = {
+        "meta":        {
+            "project":    "{{ meta.project_name }}",
+            "timestamp":  datetime.now().isoformat(),
+            "config":     "{{ meta.config_source }}",
+        },
+        "paths":       {},
+        "weights":     {},
+        "scores":      {},
+        "rankings":    {},
+        "figures":     {},
+        "sensitivity": {},
+    }
+
+    # —— 初始化输出目录 ——
+    dirs = setup_output_dirs(OUTPUT_DIR)
+    logger.info("输出目录已准备: %s", OUTPUT_DIR)
+
+    # ================================================================
+    # STEP 1: 数据加载
+    # ================================================================
+    print_step(1, "数据加载", total={{ workflow_steps | length }})
+    objects, data_raw, df_raw = load_data(
+        filepath=DATA_FILE,
+        eval_col=EVAL_OBJECTS_COL,
+        indicator_cols=INDICATOR_COLS,
+        encoding="{{ config.encoding }}",
+        logger=logger,
+    )
+    report = validate_data(data_raw, objects, INDICATOR_NAMES, logger)
+    if not report["passed"]:
+        logger.warning("数据质量未完全通过，请关注上述警告信息")
+
+    # ================================================================
+    # STEP 2: 数据预处理
+    # ================================================================
+    print_step(2, "数据预处理（缺失处理 → 正向化 → 归一化）", total={{ workflow_steps | length }})
+
+    {% if preprocessing.handle_missing %}
+    data_clean = handle_missing_values(
+        data_raw, INDICATOR_NAMES,
+        strategy=MISSING_STRATEGY, logger=logger,
+    )
+    {% else %}
+    data_clean = data_raw.copy()
+    logger.info("  跳过缺失值处理（配置已禁用）")
+    {% endif %}
+
+    {% if preprocessing.handle_outliers %}
+    data_clean, outlier_info = handle_outliers(
+        data_clean, INDICATOR_NAMES, logger=logger,
+    )
+    results["outlier_info"] = outlier_info
+    {% endif %}
+
+    # 相关性检验
+    {% if preprocessing.check_correlation %}
+    corr_df, high_corr_pairs = correlation_matrix(data_clean, INDICATOR_NAMES)
+    if high_corr_pairs:
+        logger.warning(
+            "发现高相关指标对（|r|>0.85）: %s，"
+            "建议考虑降维或合并指标",
+            [(a, b, f"{r:.3f}") for a, b, r in high_corr_pairs],
+        )
+    if SAVE_CSV:
+        save_dataframe(corr_df, "indicator_correlation", dirs["tables"], logger=logger)
+    {% endif %}
+
+    {% if preprocessing.use_pca %}
+    # —— PCA 降维 ——
+    print("  → 执行 PCA 降维...")
+    data_for_weights, pca_model, pc_names, loadings_df = apply_pca(
+        data_clean, INDICATOR_NAMES, variance_ratio={{ preprocessing.pca_variance }}, logger=logger,
+    )
+    if SAVE_CSV:
+        save_dataframe(loadings_df, "pca_loadings", dirs["tables"], logger=logger)
+    indicator_names_used = pc_names
+    if SAVE_FIGURES:
+        fig_pca = plot_pca_scree(pca_model, save_path=os.path.join(dirs["figures"], "pca_scree"))
+        results["figures"]["pca_scree"] = os.path.join(dirs["figures"], f"pca_scree.{FIG_FORMAT}")
+    {% else %}
+    # 无 PCA：正向化 + 归一化
+    data_positive = directionalize(data_clean, INDICATOR_DIRS, MODERATE_OPTS)
+    data_for_weights = normalize_matrix(data_positive, method=NORMALIZE_METHOD)
+    indicator_names_used = INDICATOR_NAMES
+    {% endif %}
+
+    # ================================================================
+    # STEP 3: 指标权重计算
+    # ================================================================
+    print_step(3, f"权重计算（{WEIGHT_METHOD}）", total={{ workflow_steps | length }})
+
+    {% if use_entropy %}
+    weights_entropy, entropy_detail_df = entropy_weight(
+        data_for_weights, indicator_names_used, logger=logger,
+    )
+    results["weights"]["entropy"] = weights_entropy.tolist()
+    if SAVE_CSV:
+        save_dataframe(entropy_detail_df, "weights_entropy", dirs["tables"], logger=logger)
+    {% endif %}
+
+    {% if use_critic %}
+    weights_critic, critic_detail_df = critic_weight(
+        data_for_weights, indicator_names_used, logger=logger,
+    )
+    results["weights"]["critic"] = weights_critic.tolist()
+    if SAVE_CSV:
+        save_dataframe(critic_detail_df, "weights_critic", dirs["tables"], logger=logger)
+    {% endif %}
+
+    {% if use_stddev %}
+    weights_stddev, stddev_detail_df = stddev_weight(
+        data_for_weights, indicator_names_used, logger=logger,
+    )
+    results["weights"]["stddev"] = weights_stddev.tolist()
+    if SAVE_CSV:
+        save_dataframe(stddev_detail_df, "weights_stddev", dirs["tables"], logger=logger)
+    {% endif %}
+
+    {% if use_ahp %}
+    weights_ahp, ci_ahp, cr_ahp, ahp_passed = ahp_weight(
+        AHP_MATRIX, indicator_names_used, logger=logger,
+    )
+    results["weights"]["ahp"] = weights_ahp.tolist()
+    results["weights"]["ahp_cr"] = cr_ahp
+    {% endif %}
+
+    {% if use_combination_weights %}
+    # —— 组合赋权 ——
+    weights_list_for_combine = [
+        {% if use_entropy %}weights_entropy,{% endif %}
+        {% if use_critic %}weights_critic,{% endif %}
+        {% if use_ahp %}weights_ahp,{% endif %}
+    ]
+    method_names_combine = [
+        {% if use_entropy %}"熵权法",{% endif %}
+        {% if use_critic %}"CRITIC法",{% endif %}
+        {% if use_ahp %}"AHP法",{% endif %}
+    ]
+    coef_combine = {% if weights.combination_coef is not none %}{{ weights.combination_coef | tojson }}{% else %}None{% endif %}
+
+    final_weights, compare_df = combine_weights(
+        weights_list_for_combine,
+        method_names_combine,
+        coef=coef_combine,
+        method="{{ weights.combination_method | default('linear') }}",
+        logger=logger,
+    )
+    results["weights"]["combination"] = final_weights.tolist()
+    if SAVE_CSV:
+        save_dataframe(compare_df, "weights_comparison", dirs["tables"], logger=logger)
+    {% elif use_entropy %}
+    final_weights = weights_entropy
+    {% elif use_critic %}
+    final_weights = weights_critic
+    {% elif use_ahp %}
+    final_weights = weights_ahp
+    {% elif use_stddev %}
+    final_weights = weights_stddev
+    {% else %}
+    # 等权重（fallback）
+    n_ind = len(indicator_names_used)
+    final_weights = np.full(n_ind, 1.0 / n_ind)
+    logger.warning("未选定赋权方法，使用等权重")
+    {% endif %}
+
+    # 权重可视化
+    if SAVE_FIGURES:
+        fig_w = plot_weights_bar(
+            final_weights, indicator_names_used,
+            method_name=WEIGHT_METHOD,
+            save_path=os.path.join(dirs["figures"], "weights_bar"),
+        )
+        results["figures"]["weights_bar"] = os.path.join(dirs["figures"], f"weights_bar.{FIG_FORMAT}")
+
+    # 相关性热力图（原始指标）
+    if SAVE_FIGURES:
+        fig_corr = plot_correlation_heatmap(
+            data_clean, INDICATOR_NAMES,
+            save_path=os.path.join(dirs["figures"], "correlation_heatmap"),
+        )
+        results["figures"]["correlation_heatmap"] = os.path.join(
+            dirs["figures"], f"correlation_heatmap.{FIG_FORMAT}"
+        )
+
+    # ================================================================
+    # STEP 4: 综合评价
+    # ================================================================
+    print_step(4, f"综合评价（{EVAL_MODEL}）", total={{ workflow_steps | length }})
+    all_scores: Dict[str, np.ndarray] = {}
+
+    {% if use_topsis %}
+    topsis_scores, topsis_result_df = topsis(
+        data_for_weights, final_weights, objects, logger=logger,
+    )
+    results["scores"]["topsis"] = topsis_scores.tolist()
+    all_scores["TOPSIS"] = topsis_scores
+    if SAVE_CSV:
+        save_dataframe(topsis_result_df, "result_topsis", dirs["tables"], logger=logger)
+    {% endif %}
+
+    {% if use_vikor %}
+    vikor_Q, vikor_result_df = vikor(
+        data_for_weights, final_weights, objects,
+        v=VIKOR_V, logger=logger,
+    )
+    results["scores"]["vikor_Q"] = vikor_Q.tolist()
+    all_scores["VIKOR"] = -vikor_Q   # 取负使得越大越好，方便对比
+    if SAVE_CSV:
+        save_dataframe(vikor_result_df, "result_vikor", dirs["tables"], logger=logger)
+    {% endif %}
+
+    {% if use_gra %}
+    gra_scores, gra_result_df = grey_relational_analysis(
+        data_for_weights, final_weights, objects,
+        rho=GRA_RHO, logger=logger,
+    )
+    results["scores"]["gra"] = gra_scores.tolist()
+    all_scores["GRA"] = gra_scores
+    if SAVE_CSV:
+        save_dataframe(gra_result_df, "result_gra", dirs["tables"], logger=logger)
+    {% endif %}
+
+    {% if use_fuzzy %}
+    fuzzy_scores, fuzzy_result_df = fuzzy_comprehensive_eval(
+        data_positive, final_weights, objects, logger=logger,
+    )
+    results["scores"]["fuzzy"] = fuzzy_scores.tolist()
+    all_scores["模糊综评"] = fuzzy_scores
+    if SAVE_CSV:
+        save_dataframe(fuzzy_result_df, "result_fuzzy", dirs["tables"], logger=logger)
+    {% endif %}
+
+    {% if use_rsr %}
+    rsr_scores, rsr_result_df = rank_sum_ratio(
+        data_clean, final_weights, objects, logger=logger,
+    )
+    results["scores"]["rsr"] = rsr_scores.tolist()
+    all_scores["RSR"] = rsr_scores
+    if SAVE_CSV:
+        save_dataframe(rsr_result_df, "result_rsr", dirs["tables"], logger=logger)
+    {% endif %}
+
+    # 选定主要模型得分用于后续分析
+    primary_scores = results["scores"].get(
+        EVAL_MODEL,
+        next(iter(results["scores"].values())) if results["scores"] else np.zeros(len(objects))
+    )
+    primary_scores = np.array(primary_scores)
+
+    # ================================================================
+    # STEP 5: 可视化
+    # ================================================================
+    print_step(5, "结果可视化", total={{ workflow_steps | length }})
+
+    if SAVE_FIGURES:
+        # 排名条形图
+        fig_rank = plot_ranking_bar(
+            primary_scores, objects,
+            method_name=EVAL_MODEL.upper(),
+            save_path=os.path.join(dirs["figures"], "ranking_bar"),
+        )
+        results["figures"]["ranking_bar"] = os.path.join(dirs["figures"], f"ranking_bar.{FIG_FORMAT}")
+
+        # 雷达图
+        fig_radar = plot_radar(
+            data_for_weights[np.argsort(primary_scores)[::-1]],
+            indicator_names_used,
+            objects[np.argsort(primary_scores)[::-1]],
+            top_n=min(5, len(objects)),
+            save_path=os.path.join(dirs["figures"], "radar_chart"),
+        )
+        results["figures"]["radar"] = os.path.join(dirs["figures"], f"radar_chart.{FIG_FORMAT}")
+
+    {% if use_multiple_models %}
+    # 多方法对比图
+    if SAVE_FIGURES and len(all_scores) > 1:
+        fig_compare = plot_method_comparison(
+            all_scores, objects,
+            save_path=os.path.join(dirs["figures"], "method_comparison"),
+        )
+        results["figures"]["method_comparison"] = os.path.join(
+            dirs["figures"], f"method_comparison.{FIG_FORMAT}"
+        )
+    {% endif %}
+
+    {% if use_sensitivity %}
+    # ================================================================
+    # STEP 6: 灵敏度分析
+    # ================================================================
+    print_step(6, f"权重灵敏度分析（OAT ±{SENSITIVITY_RANGE*100:.0f}%）", total={{ workflow_steps | length }})
+
+    # 选择主评价函数进行灵敏度分析
+    {% if use_topsis %}
+    _sens_func = topsis
+    _sens_name = "TOPSIS"
+    {% elif use_gra %}
+    _sens_func = grey_relational_analysis
+    _sens_name = "GRA"
+    {% elif use_vikor %}
+    _sens_func = vikor
+    _sens_name = "VIKOR"
+    {% else %}
+    _sens_func = None
+    _sens_name = "N/A"
+    {% endif %}
+
+    if _sens_func is not None:
+        sens_score_df, sens_rank_df = sensitivity_analysis_oat(
+            data_for_weights, final_weights,
+            indicator_names_used, objects,
+            eval_func=_sens_func,
+            perturb_range=SENSITIVITY_RANGE,
+            n_steps=SENSITIVITY_STEPS,
+            logger=logger,
+        )
+        results["sensitivity"]["score_df"] = sens_score_df.to_dict(orient="records")
+
+        if SAVE_CSV:
+            save_dataframe(sens_score_df, "sensitivity_scores", dirs["tables"], logger=logger)
+            save_dataframe(sens_rank_df,  "sensitivity_ranks",  dirs["tables"], logger=logger)
+
+        if SAVE_FIGURES:
+            fig_sens = plot_sensitivity_curves(
+                sens_score_df, objects,
+                indicator_names_used,
+                method_name=_sens_name,
+                save_path=os.path.join(dirs["figures"], "sensitivity_curves"),
+            )
+            results["figures"]["sensitivity"] = os.path.join(
+                dirs["figures"], f"sensitivity_curves.{FIG_FORMAT}"
+            )
+    {% endif %}
+
+    # ================================================================
+    # STEP {{ workflow_steps | length }}: 结果汇总与导出
+    # ================================================================
+    print_step({{ workflow_steps | length }}, "结果汇总与导出", total={{ workflow_steps | length }})
+
+    # 汇总最终排名
+    primary_scores_arr = np.array(primary_scores)
+    sort_idx = np.argsort(primary_scores_arr)[::-1]
+    final_ranking_df = pd.DataFrame({
+        "排名":   range(1, len(objects) + 1),
+        "评价对象": [objects[i] for i in sort_idx],
+        "综合得分": [round(float(primary_scores_arr[i]), 4) for i in sort_idx],
+        "赋权方法": WEIGHT_METHOD,
+        "评价模型": EVAL_MODEL,
+    })
+
+    if SAVE_CSV:
+        save_dataframe(final_ranking_df, "final_ranking", dirs["tables"], logger=logger)
+
+    # 保存完整结果字典（JSON 格式）
+    results_json_path = os.path.join(dirs["base"], "results_summary.json")
+    serializable = {
+        k: v for k, v in results.items()
+        if k not in ("sensitivity",)   # 跳过大型 DataFrame
+    }
+    with open(results_json_path, "w", encoding="utf-8") as f:
+        json.dump(serializable, f, ensure_ascii=False, indent=2)
+    logger.info("结果摘要已保存: %s", results_json_path)
+
+    # 打印最终摘要
+    print_section("🏆  最终评价结果摘要")
+    print(f"  项目名称  : {{ meta.project_name }}")
+    print(f"  赋权方法  : {WEIGHT_METHOD}")
+    print(f"  评价模型  : {EVAL_MODEL}")
+    print(f"  评价对象数: {len(objects)}")
+    print(f"  评价指标数: {len(INDICATOR_COLS)}")
+    print()
+    print(final_ranking_df.to_string(index=False))
+    print_section("输出文件清单")
+    print(f"  📁 输出根目录 : {os.path.abspath(OUTPUT_DIR)}")
+    print(f"  📊 结果表格   : {dirs['tables']}/")
+    print(f"  🖼  可视化图片: {dirs['figures']}/")
+    print(f"  📝 结果摘要   : {results_json_path}")
+
+    return results
+
+
+{# ──────────────────────────────────────────────────────────────── #}
+{# 第十一部分：程序入口                                             #}
+{# ──────────────────────────────────────────────────────────────── #}
+# ================================================================
+# 程序入口
+# ================================================================
+
+def main() -> None:
+    """
+    脚本入口函数。
+    初始化日志 → 执行评价流水线 → 捕获异常并输出友好提示。
+    """
+    # 初始化日志
+    logger = setup_logging(
+        log_dir=os.path.join(OUTPUT_DIR, "logs"),
+        verbose=VERBOSE,
+    )
+
+    print_section(
+        f"AutoEval-Modeling  |  {{ meta.project_name }}"
+        f"\n  生成时间: {{ meta.generated_at }}"
+        f"\n  评价方法: {WEIGHT_METHOD.upper()} + {EVAL_MODEL.upper()}",
+        char="█",
+    )
+
+    try:
+        results = run_evaluation_pipeline(logger)
+        logger.info("✅  评价流水线执行完成！")
+    except FileNotFoundError as e:
+        logger.error("数据文件未找到: %s", e)
+        logger.error("请检查 DATA_FILE 配置: %s", DATA_FILE)
+        sys.exit(1)
+    except KeyError as e:
+        logger.error("列名错误: %s", e)
+        logger.error("请检查 EVAL_OBJECTS_COL 和 INDICATOR_COLS 配置")
+        sys.exit(1)
+    except np.linalg.LinAlgError as e:
+        logger.error("矩阵计算错误（可能因矩阵奇异）: %s", e)
+        logger.error("建议检查数据中是否存在完全相同的列或零方差指标")
+        sys.exit(1)
+    except Exception as e:
+        logger.error("未预期的错误: %s", e)
+        logger.debug(traceback.format_exc())
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

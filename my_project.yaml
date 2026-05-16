@@ -1,0 +1,43 @@
+# AutoEval-Modeling 基础配置模板
+# 生成时间: 2026-05-16
+# 文档: https://github.com/autoeval-modeling/autoeval-modeling/docs/config.md
+
+# ── 元数据 ────────────────────────────────────────────────────────────────────
+project_name: shumo
+problem_description: "对10个城市的创新能力进行综合评价"
+
+# ── 数据输入 ──────────────────────────────────────────────────────────────────
+data_path: data/city_innovation.csv     # 数据文件路径（.csv 或 .xlsx）
+object_col: 城市                         # 评价对象所在列的列名
+# ★ 修正：列名必须与 CSV 文件表头完全一致
+indicator_cols:
+  - RD投入_亿元
+  - 专利授权数_件
+  - 高新企业数_家
+  - GDP增长率_百分比
+indicator_types:                         # 对应指标方向: pos=正向 neg=负向 mod=适度
+  - pos
+  - pos
+  - pos
+  - pos
+
+# ── 算法选择（设为 auto 由系统自动推荐）──────────────────────────────────────
+weight_method: auto        # 赋权方法: entropy / critic / ahp / std_dev / combination / auto
+eval_method: auto          # 评价方法: topsis / gra / vikor / fuzzy / rsr / dea / auto
+enable_combination: false  # 是否启用组合赋权
+enable_sensitivity: true   # 是否执行灵敏度分析
+enable_dynamic: false      # 是否启用动态时序评价
+
+# ── 输出控制 ──────────────────────────────────────────────────────────────────
+output_dir: output/
+report_lang: zh            # 报告语言: zh=中文 en=English
+generate_latex: true       # 生成 LaTeX 报告源码
+generate_code: true        # 生成独立 Python 脚本
+generate_plots: true       # 生成可视化图表
+fig_format: png            # 图片格式: png / pdf / svg
+fig_dpi: 300               # 图片分辨率
+
+# ── 运行控制 ──────────────────────────────────────────────────────────────────
+log_level: INFO            # 日志级别: DEBUG / INFO / WARNING / ERROR
+random_seed: 42
+max_retries: 2             # 节点失败后最大重试次数

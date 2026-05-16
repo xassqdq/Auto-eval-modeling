@@ -1,0 +1,77 @@
+%% ============================================================
+%% 组合赋权段落模板
+%% 变量:
+%%   n_criteria           — 指标数量
+%%   criteria_names       — 指标名称列表
+%%   subjective_method    — 主观赋权方法名 (如 "AHP")
+%%   objective_method     — 客观赋权方法名 (如 "熵权法")
+%%   w_subjective         — 主观权重列表
+%%   w_objective          — 客观权重列表
+%%   w_combined           — 组合权重列表
+%%   combination_method   — 组合策略 ("linear", "multiplicative", "game_theory")
+%%   alpha                — 线性组合系数 (仅 linear 时)
+%%   comparison_bar_path  — 权重对比图路径
+%% ============================================================
+
+\subsection{组合赋权}
+
+为克服单一赋权方法的局限性，本文将<< subjective_method >>（主观权重）与<< objective_method >>（客观权重）进行组合，以获得更为合理的综合权重。
+
+<% if combination_method == "linear" %>
+\subsubsection{线性加权组合}
+
+线性组合权重为：
+\begin{equation}
+    w_j = \alpha \cdot w_j^{S} + (1 - \alpha) \cdot w_j^{O}
+    \label{eq:comb_linear}
+\end{equation}
+其中 $\alpha = << alpha >>$ 为主观权重的偏好系数，$w_j^S$ 和 $w_j^O$ 分别为<< subjective_method >>和<< objective_method >>所得权重。
+
+<% elif combination_method == "multiplicative" %>
+\subsubsection{乘法归一化组合}
+
+乘法组合权重为：
+\begin{equation}
+    w_j = \frac{w_j^S \cdot w_j^O}{\sum_{k=1}^{n} w_k^S \cdot w_k^O}
+    \label{eq:comb_multiplicative}
+\end{equation}
+
+<% elif combination_method == "game_theory" %>
+\subsubsection{基于博弈论的组合赋权}
+
+博弈论组合赋权的核心思想是使组合权重与各方法所得权重的偏差最小。设 $L$ 种赋权方法所得权重向量为 $\{\mathbf{w}_l\}_{l=1}^{L}$，组合权重为：
+\begin{equation}
+    \mathbf{w}^* = \sum_{l=1}^{L} \alpha_l^* \mathbf{w}_l
+\end{equation}
+其中 $\alpha_l^*$ 通过最小化各权重向量与组合权重的离差得到：
+\begin{equation}
+    \min \sum_{l=1}^{L} \left\| \sum_{k=1}^{L} \alpha_k \mathbf{w}_k - \mathbf{w}_l \right\|^2
+\end{equation}
+
+<% endif %>
+
+\subsubsection{组合权重结果}
+
+\begin{table}[H]
+    \centering
+    \caption{主观权重、客观权重与组合权重对比}
+    \label{tab:comb_weights}
+    \begin{tabular}{lccc}
+        \toprule
+        \textbf{指标} & \textbf{<< subjective_method >>} & \textbf{<< objective_method >>} & \textbf{组合权重} \\
+        \midrule
+<% for i in range(n_criteria) %>
+        << criteria_names[i] >> & << "%.6f" | format(w_subjective[i]) >> & << "%.6f" | format(w_objective[i]) >> & << "%.6f" | format(w_combined[i]) >> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+<% if comparison_bar_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{<< comparison_bar_path >>}
+    \caption{三种权重对比}
+    \label{fig:comb_weights_comparison}
+\end{figure}
+<% endif %>

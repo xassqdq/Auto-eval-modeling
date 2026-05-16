@@ -1,0 +1,86 @@
+%% ============================================================
+%% PCA 段落模板
+%% 变量:
+%%   n_criteria           — 原始指标数量
+%%   criteria_names       — 原始指标名称列表
+%%   n_components         — 提取主成分数量
+%%   eigenvalues          — 特征值列表
+%%   variance_ratios      — 方差贡献率列表
+%%   cum_variance_ratios  — 累计方差贡献率列表
+%%   loadings_matrix      — 载荷矩阵 (二维列表)
+%%   component_names      — 主成分名称列表 ["PC1", "PC2", ...]
+%%   threshold            — 累计贡献率阈值 (如 0.85)
+%%   scree_plot_path      — 碎石图路径
+%%   loading_plot_path    — 载荷图路径 (可选)
+%% ============================================================
+
+\subsection{主成分分析（PCA）降维处理}
+
+\subsubsection{模型原理}
+
+主成分分析（Principal Component Analysis, PCA）通过正交变换将一组可能相关的变量转换为一组线性不相关的综合变量（主成分），以较少的主成分保留原始数据的主要信息。
+
+对标准化数据矩阵 $\mathbf{Z}$ 计算相关系数矩阵 $\mathbf{R}$，求解特征方程：
+\begin{equation}
+    |\mathbf{R} - \lambda \mathbf{I}| = 0
+\end{equation}
+得到特征值 $\lambda_1 \geq \lambda_2 \geq \ldots \geq \lambda_n$ 及对应特征向量。选取前 $p$ 个主成分使得累计方差贡献率超过 << "%.0f" | format(threshold * 100) >>\%：
+\begin{equation}
+    \frac{\sum_{k=1}^{p} \lambda_k}{\sum_{k=1}^{n} \lambda_k} \geq << threshold >>
+\end{equation}
+
+\subsubsection{计算结果}
+
+各主成分的特征值与方差贡献率如表~\ref{tab:pca_eigenvalues} 所示。
+
+\begin{table}[H]
+    \centering
+    \caption{PCA 特征值与方差贡献率}
+    \label{tab:pca_eigenvalues}
+    \begin{tabular}{lccc}
+        \toprule
+        \textbf{主成分} & \textbf{特征值} & \textbf{方差贡献率(\%)} & \textbf{累计贡献率(\%)} \\
+        \midrule
+<% for i in range(n_criteria) %>
+        << component_names[i] if i < n_components else "PC" ~ (i+1) >> & << "%.4f" | format(eigenvalues[i]) >> & << "%.2f" | format(variance_ratios[i] * 100) >> & << "%.2f" | format(cum_variance_ratios[i] * 100) >> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table>
+
+<% if scree_plot_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{<< scree_plot_path >>}
+    \caption{PCA 碎石图与累计方差贡献率}
+    \label{fig:pca_scree}
+\end{figure>
+<% endif %>
+
+根据累计方差贡献率 $\geq$ << "%.0f" | format(threshold * 100) >>\% 的原则，提取前 \textbf{<< n_components >>} 个主成分，累计方差贡献率达到 << "%.2f" | format(cum_variance_ratios[n_components - 1] * 100) >>\%，能够较好地反映原始 << n_criteria >> 个指标的主要信息。
+
+<% if loading_plot_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{<< loading_plot_path >>}
+    \caption{主成分载荷图}
+    \label{fig:pca_loading}
+\end{figure}
+<% endif %>
+
+各主成分的载荷矩阵如表~\ref{tab:pca_loadings} 所示。
+
+\begin{table}[H]
+    \centering
+    \caption{主成分载荷矩阵}
+    \label{tab:pca_loadings}
+    \begin{tabular}{l<% for i in range(n_components) %>c<% endfor %>}
+        \toprule
+        \textbf{指标} & <% for i in range(n_components) %><% if not loop.first %> & <% endif %>\textbf{<< component_names[i] >>}<% endfor %> \\
+        \midrule
+<% for i in range(n_criteria) %>
+        << criteria_names[i] >> & <% for j in range(n_components) %><% if not loop.first %> & <% endif %><< "%.4f" | format(loadings_matrix[i][j]) >><% endfor %> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table>

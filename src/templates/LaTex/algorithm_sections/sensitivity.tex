@@ -1,0 +1,72 @@
+%% ============================================================
+%% 灵敏度分析段落模板
+%% 变量:
+%%   n_criteria           — 指标数量
+%%   criteria_names       — 指标名称列表
+%%   object_names         — 评价对象名称列表
+%%   n_samples            — 对象数量
+%%   eval_method          — 评价方法名 (如 "TOPSIS")
+%%   perturbation_range   — 扰动范围描述 (如 "±10%")
+%%   perturbation_steps   — 扰动步数
+%%   original_ranks       — 原始排名列表
+%%   sensitivity_results  — 灵敏度结果字典 {criteria_name: {step: [ranks]}}
+%%   kendall_tau_values   — 各指标扰动后的 Kendall τ 列表
+%%   most_sensitive       — 最敏感指标名
+%%   least_sensitive      — 最不敏感指标名
+%%   sensitivity_plot_path — 灵敏度曲线图路径
+%%   kendall_bar_path     — Kendall τ 柱状图路径
+%% ============================================================
+
+\subsection{灵敏度分析}
+
+为检验评价结果的稳健性，本文对各指标权重进行灵敏度分析。采用"一次一因子"（One-At-a-Time, OAT）方法，依次将每个指标的权重在原始值基础上扰动 << perturbation_range >>（保持其余指标权重等比例调整使总和为 1），观察排名变动情况。
+
+\subsubsection{排名稳定性分析}
+
+对每次扰动重新计算 << eval_method >> 得分，记录各对象的排名变化。图~\ref{fig:sensitivity_curve} 展示了不同指标权重变动下各对象排名的波动情况。
+
+<% if sensitivity_plot_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{<< sensitivity_plot_path >>}
+    \caption{权重扰动下的排名灵敏度曲线}
+    \label{fig:sensitivity_curve}
+\end{figure}
+<% endif %>
+
+\subsubsection{Kendall 排名相关性检验}
+
+为量化排名的整体变动程度，计算每次扰动后的排名与原始排名之间的 Kendall $\tau$ 系数（取所有扰动步骤的均值），结果如表~\ref{tab:kendall} 所示。
+
+\begin{table}[H]
+    \centering
+    \caption{各指标权重扰动后的平均 Kendall $\tau$ 系数}
+    \label{tab:kendall}
+    \begin{tabular}{lc}
+        \toprule
+        \textbf{扰动指标} & \textbf{平均 Kendall $\tau$} \\
+        \midrule
+<% for i in range(n_criteria) %>
+        << criteria_names[i] >> & << "%.4f" | format(kendall_tau_values[i]) >> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+<% if kendall_bar_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{<< kendall_bar_path >>}
+    \caption{Kendall $\tau$ 系数对比}
+    \label{fig:kendall_bar}
+\end{figure}
+<% endif %>
+
+\subsubsection{分析结论}
+
+由灵敏度分析结果可知：
+\begin{itemize}
+    \item 权重对 \textbf{<< most_sensitive >>} 最为敏感（Kendall $\tau$ 最低），即该指标权重的小幅变动即可引起排名较大变化，应在赋权时重点关注其准确性。
+    \item \textbf{<< least_sensitive >>} 的灵敏度最低（Kendall $\tau$ 最高），排名几乎不受该指标权重变化影响，评价结果对该指标具有良好的稳健性。
+    \item 整体来看，各指标 Kendall $\tau$ 均值为 << "%.4f" | format(kendall_tau_values | sum / n_criteria) >>，表明<% if (kendall_tau_values | sum / n_criteria) > 0.8 %>评价结果具有较强的稳健性<% elif (kendall_tau_values | sum / n_criteria) > 0.6 %>评价结果具有一定的稳健性<% else %>评价结果对权重变动较为敏感，建议结合多种赋权方法进行交叉验证<% endif %>。
+\end{itemize}

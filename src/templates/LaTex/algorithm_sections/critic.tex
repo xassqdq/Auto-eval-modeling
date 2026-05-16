@@ -1,0 +1,72 @@
+%% ============================================================
+%% CRITIC 法段落模板
+%% 变量:
+%%   n_criteria           — 指标数量
+%%   criteria_names       — 指标名称列表
+%%   std_values           — 标准差列表
+%%   conflict_values      — 冲突性度量列表
+%%   info_values          — 信息量 C_j 列表
+%%   critic_weights       — CRITIC 权重列表
+%%   corr_heatmap_path    — 指标相关性热力图路径
+%%   weights_bar_path     — 权重条形图路径
+%% ============================================================
+
+\subsection{基于 CRITIC 法的客观赋权}
+
+\subsubsection{模型原理}
+
+CRITIC（Criteria Importance Through Intercriteria Correlation）法由 Diakoulaki 等人于 1995 年提出，同时考虑指标的\textbf{对比强度}（标准差）和\textbf{冲突性}（指标间相关性），从而客观确定权重。
+
+对于 $n = << n_criteria >>$ 个指标，第 $j$ 个指标的信息量定义为：
+\begin{equation}
+    C_j = \sigma_j \sum_{k=1}^{n} (1 - r_{jk})
+    \label{eq:critic_info}
+\end{equation}
+其中 $\sigma_j$ 为第 $j$ 个指标的标准差，$r_{jk}$ 为指标 $j$ 与指标 $k$ 之间的 Pearson 相关系数。
+
+权重计算为：
+\begin{equation}
+    w_j^{C} = \frac{C_j}{\sum_{k=1}^{n} C_k}
+    \label{eq:critic_weight}
+\end{equation}
+
+直观理解：标准差越大，说明指标的对比强度越大；与其他指标的相关性越低，说明其蕴含的独特信息越多。两者综合越大，指标越重要。
+
+\subsubsection{计算结果}
+
+<% if corr_heatmap_path %>
+首先计算各指标间的 Pearson 相关系数矩阵，如图~\ref{fig:critic_corr} 所示。
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{<< corr_heatmap_path >>}
+    \caption{指标间 Pearson 相关系数热力图}
+    \label{fig:critic_corr}
+\end{figure}
+<% endif %>
+
+各指标的标准差、冲突性、信息量与 CRITIC 权重如表~\ref{tab:critic_result} 所示。
+
+\begin{table}[H]
+    \centering
+    \caption{CRITIC 法计算结果}
+    \label{tab:critic_result}
+    \begin{tabular}{lcccc}
+        \toprule
+        \textbf{指标} & \textbf{标准差 $\sigma_j$} & \textbf{冲突性} & \textbf{信息量 $C_j$} & \textbf{权重 $w_j^C$} \\
+        \midrule
+<% for i in range(n_criteria) %>
+        << criteria_names[i] >> & << "%.6f" | format(std_values[i]) >> & << "%.6f" | format(conflict_values[i]) >> & << "%.6f" | format(info_values[i]) >> & << "%.6f" | format(critic_weights[i]) >> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+<% if weights_bar_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{<< weights_bar_path >>}
+    \caption{CRITIC 法指标权重分布}
+    \label{fig:critic_weights_bar}
+\end{figure}
+<% endif %>

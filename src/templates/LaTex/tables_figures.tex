@@ -1,0 +1,123 @@
+%% ============================================================
+%% 通用表格插入模板
+%% 变量:
+%%   table_caption    — 表格标题
+%%   table_label      — 引用标签
+%%   table_headers    — 列标题列表 ["指标", "权重", ...]
+%%   table_rows       — 行数据 [["x1", "0.32", ...], ...]
+%%   table_note       — 表注 (可选)
+%% ============================================================
+
+<%- macro render_table(table_caption, table_label, table_headers, table_rows, table_note="") %>
+\begin{table}[H]
+    \centering
+    \caption{<< table_caption >>}
+    \label{<< table_label >>}
+    \begin{tabular}{<< "c" * table_headers|length >>}
+        \toprule
+        <% for h in table_headers %><% if not loop.first %> & <% endif %>\textbf{<< h >>}<% endfor %> \\
+        \midrule
+<% for row in table_rows %>
+        <% for cell in row %><% if not loop.first %> & <% endif %><< cell >><% endfor %> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+<% if table_note %>
+    \begin{tablenotes}
+        \small
+        \item 注：<< table_note >>
+    \end{tablenotes}
+<% endif %>
+\end{table}
+<%- endmacro %>
+
+
+%% ============================================================
+%% 通用长表格插入模板 (跨页)
+%% 变量同上
+%% ============================================================
+
+<%- macro render_longtable(table_caption, table_label, table_headers, table_rows) %>
+\begin{longtable}{<< "c" * table_headers|length >>}
+    \caption{<< table_caption >>} \label{<< table_label >>} \\
+    \toprule
+    <% for h in table_headers %><% if not loop.first %> & <% endif %>\textbf{<< h >>}<% endfor %> \\
+    \midrule
+    \endfirsthead
+    \multicolumn{<< table_headers|length >>}{c}{\tablename\ \thetable\ (续)} \\
+    \toprule
+    <% for h in table_headers %><% if not loop.first %> & <% endif %>\textbf{<< h >>}<% endfor %> \\
+    \midrule
+    \endhead
+    \bottomrule
+    \endfoot
+<% for row in table_rows %>
+    <% for cell in row %><% if not loop.first %> & <% endif %><< cell >><% endfor %> \\
+<% endfor %>
+\end{longtable}
+<%- endmacro %>
+
+
+%% ============================================================
+%% 通用单图插入模板
+%% 变量:
+%%   fig_path     — 图片路径
+%%   fig_caption  — 图片标题
+%%   fig_label    — 引用标签
+%%   fig_width    — 宽度 (默认 0.85\textwidth)
+%% ============================================================
+
+<%- macro render_figure(fig_path, fig_caption, fig_label, fig_width="0.85\\textwidth") %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=<< fig_width >>]{<< fig_path >>}
+    \caption{<< fig_caption >>}
+    \label{<< fig_label >>}
+\end{figure}
+<%- endmacro %>
+
+
+%% ============================================================
+%% 双图并排插入模板
+%% 变量:
+%%   fig1_path, fig1_caption, fig1_label
+%%   fig2_path, fig2_caption, fig2_label
+%%   overall_caption, overall_label
+%% ============================================================
+
+<%- macro render_subfigures(fig1_path, fig1_caption, fig1_label, fig2_path, fig2_caption, fig2_label, overall_caption, overall_label) %>
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{<< fig1_path >>}
+        \caption{<< fig1_caption >>}
+        \label{<< fig1_label >>}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{<< fig2_path >>}
+        \caption{<< fig2_caption >>}
+        \label{<< fig2_label >>}
+    \end{subfigure}
+    \caption{<< overall_caption >>}
+    \label{<< overall_label >>}
+\end{figure}
+<%- endmacro %>
+
+
+%% ============================================================
+%% 代码块插入模板
+%% 变量:
+%%   code_content  — 代码文本
+%%   code_caption  — 标题
+%%   code_label    — 引用标签
+%%   code_language — 语言 (默认 Python)
+%% ============================================================
+
+<%- macro render_code(code_content, code_caption, code_label, code_language="Python") %>
+\begin{lstlisting}[language=<< code_language >>, caption=<< code_caption >>, label=<< code_label >>]
+<< code_content >>
+\end{lstlisting}
+<%- endmacro %>

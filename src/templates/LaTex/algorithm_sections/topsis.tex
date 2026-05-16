@@ -1,0 +1,107 @@
+%% ============================================================
+%% TOPSIS 段落模板
+%% 变量:
+%%   n_criteria           — 指标数量
+%%   n_samples            — 样本数量
+%%   criteria_names       — 指标名称列表
+%%   object_names         — 评价对象名称列表
+%%   weights_source       — 权重来源说明 (如 "熵权法")
+%%   weights              — 权重列表
+%%   ideal_best           — 正理想解列表
+%%   ideal_worst          — 负理想解列表
+%%   d_best               — 各对象到正理想解距离列表
+%%   d_worst              — 各对象到负理想解距离列表
+%%   closeness            — 相对贴近度列表
+%%   rankings             — 排名列表 (整数)
+%%   ranking_bar_path     — 排名柱状图路径
+%%   radar_chart_path     — 雷达图路径 (可选)
+%% ============================================================
+
+\subsection{基于 TOPSIS 的综合评价模型}
+
+\subsubsection{模型原理}
+
+TOPSIS（Technique for Order Preference by Similarity to Ideal Solution）是一种基于距离的多属性决策方法。其基本思想是：在所有可行方案中，最优方案应距正理想解最近且距负理想解最远。
+
+设标准化加权矩阵为 $\mathbf{V} = (v_{ij})_{m \times n}$，其中 $v_{ij} = w_j \cdot z_{ij}$，$w_j$ 为第 $j$ 个指标的权重（本文采用<< weights_source >>确定），$z_{ij}$ 为标准化值。
+
+\textbf{步骤一：确定正、负理想解。}
+\begin{equation}
+    V^+ = \left( \max_i v_{i1},\ \max_i v_{i2},\ \ldots,\ \max_i v_{in} \right)
+    \label{eq:topsis_ideal_best}
+\end{equation}
+\begin{equation}
+    V^- = \left( \min_i v_{i1},\ \min_i v_{i2},\ \ldots,\ \min_i v_{in} \right)
+    \label{eq:topsis_ideal_worst}
+\end{equation}
+
+\textbf{步骤二：计算欧氏距离。}
+\begin{equation}
+    D_i^+ = \sqrt{\sum_{j=1}^{n} (v_{ij} - v_j^+)^2}, \quad
+    D_i^- = \sqrt{\sum_{j=1}^{n} (v_{ij} - v_j^-)^2}
+    \label{eq:topsis_distance}
+\end{equation}
+
+\textbf{步骤三：计算相对贴近度。}
+\begin{equation}
+    C_i = \frac{D_i^-}{D_i^+ + D_i^-}, \quad 0 \leq C_i \leq 1
+    \label{eq:topsis_closeness}
+\end{equation}
+$C_i$ 越大，表明该对象越接近正理想解，综合表现越好。
+
+\subsubsection{理想解确定}
+
+基于 << weights_source >> 所得权重 $\mathbf{w} = (<< weights | map("%.4f" | format) | join(",\\ ") >>)$，计算加权标准化矩阵后，确定正、负理想解如表~\ref{tab:topsis_ideal} 所示。
+
+\begin{table}[H]
+    \centering
+    \caption{TOPSIS 正理想解与负理想解}
+    \label{tab:topsis_ideal}
+    \begin{tabular}{l<% for c in criteria_names %>c<% endfor %>}
+        \toprule
+         & <% for c in criteria_names %><% if not loop.first %> & <% endif %>\textbf{<< c >>}<% endfor %> \\
+        \midrule
+        正理想解 $V^+$ & <% for v in ideal_best %><% if not loop.first %> & <% endif %><< "%.6f" | format(v) >><% endfor %> \\
+        负理想解 $V^-$ & <% for v in ideal_worst %><% if not loop.first %> & <% endif %><< "%.6f" | format(v) >><% endfor %> \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{综合评价结果}
+
+各评价对象的距离与贴近度计算结果如表~\ref{tab:topsis_result} 所示。
+
+\begin{table}[H]
+    \centering
+    \caption{TOPSIS 综合评价结果}
+    \label{tab:topsis_result}
+    \begin{tabular}{lcccc}
+        \toprule
+        \textbf{评价对象} & $D_i^+$ & $D_i^-$ & \textbf{贴近度 $C_i$} & \textbf{排名} \\
+        \midrule
+<% for i in range(n_samples) %>
+        << object_names[i] >> & << "%.6f" | format(d_best[i]) >> & << "%.6f" | format(d_worst[i]) >> & << "%.6f" | format(closeness[i]) >> & << rankings[i] >> \\
+<% endfor %>
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+<% if ranking_bar_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{<< ranking_bar_path >>}
+    \caption{各评价对象 TOPSIS 相对贴近度排序}
+    \label{fig:topsis_ranking}
+\end{figure}
+<% endif %>
+
+<% if radar_chart_path %>
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\textwidth]{<< radar_chart_path >>}
+    \caption{各评价对象指标雷达图}
+    \label{fig:topsis_radar}
+\end{figure}
+<% endif %>
+
+由表~\ref{tab:topsis_result} 可知，<< object_names[rankings.index(1)] >> 的相对贴近度最高（$C = << "%.4f" | format(closeness[rankings.index(1)]) >>$），综合表现最优；<< object_names[rankings.index(n_samples)] >> 排名末位，需重点关注其短板指标。

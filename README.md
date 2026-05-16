@@ -658,42 +658,6 @@ Made with ❤️ for the mathematical modeling community
 
 
 
-# main.py各节职责速查
-| 节次 | 内容 | 关键类/函数 |
-| ---- | ---- | ---- |
-| 第一节 | 日志系统配置 | setup_logging() |
-| 第二节 | 运行状态数据结构 | RunStatus, StepResult, EngineResult |
-| 第三节 | 模块延迟导入与降级 | ModuleRegistry |
-| 第四节 | 配置对象 | EngineConfig |
-| 第五节 | 核心编排引擎 | AutoEvalEngine |
-| 第六节 | 内置降级算法 | _simple_entropy_weight(), _simple_topsis(), _rule_based_recommendation() |
-| 第七节 | 自定义异常 | _FatalError, ConfigError, DataError |
-| 第八节 | CLI 参数解析 | _build_cli_parser() |
-| 第九节 | 子命令处理器 | _cmd_run(), _cmd_init(), _cmd_analyze() 等 |
-| 第十节 | YAML 模板常量 | _YAML_TEMPLATE_* |
-| 第十一节 | 程序入口 | main() |
-
-
-
-```bash
-# 安装最小依赖
-pip install numpy pandas matplotlib pyyaml
-
-# 查看帮助
-python -m src.main --help
-
-# 列出算法
-python -m src.main list-algorithms
-
-# 生成配置模板
-python -m src.main init --output my_test.yaml --non-interactive
-
-# 数据分析诊断
-python -m src.main analyze --data data/city_innovation.csv
-
-# 完整运行（需配置文件 + 数据）
-python -m src.main run --config configs/default_ahp_topsis.yaml
-```
 
 
 

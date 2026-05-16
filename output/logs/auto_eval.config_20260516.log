@@ -1,0 +1,5 @@
+2026-05-16 08:45:40 | INFO     | auto_eval.config | config_loader.py:245 | 正在加载配置文件: E:\workingPlayer\日常学习\python\auto-eval-modeling\my_project.yaml
+2026-05-16 08:45:40 | ERROR    | auto_eval.config | config_loader.py:257 | 配置文件校验失败: 1 validation error for WorkflowConfig
+data
+  Field required [type=missing, input_value={'project_name': 'shumo',...': 42, 'max_retries': 2}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing

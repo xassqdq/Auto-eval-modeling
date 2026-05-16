@@ -1,0 +1,8 @@
+2026-05-15 21:58:10 | INFO     | auto_eval.config | config_loader.py:245 | 正在加载配置文件: E:\workingPlayer\日常学习\python\auto-eval-modeling\configs\entropy_topsis.yaml
+2026-05-15 21:58:10 | ERROR    | auto_eval.config | config_loader.py:257 | 配置文件校验失败: 2 validation errors for WorkflowConfig
+data.indicator_directions
+  Input should be a valid dictionary [type=dict_type, input_value=['positive', 'positive', 'positive', 'positive'], input_type=list]
+    For further information visit https://errors.pydantic.dev/2.13/v/dict_type
+output.latex_template
+  Input should be 'mcm', 'cumcm' or 'academic' [type=literal_error, input_value='ctex_article', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/literal_error

@@ -1,0 +1,129 @@
+{
+  "session_id": "20260516_084540_f4cd29d7",
+  "status": "partial",
+  "start_time": "2026-05-16T08:45:40.680989",
+  "end_time": "2026-05-16T08:46:15.135804",
+  "elapsed_seconds": 34.455,
+  "recommended_algo": "entropy-topsis (default)",
+  "steps": [
+    {
+      "step": "data_loading",
+      "status": "success",
+      "elapsed_sec": 0.187,
+      "output_keys": [
+        "raw_df"
+      ],
+      "warnings": [],
+      "error": null,
+      "metadata": {
+        "shape": [
+          10,
+          5
+        ],
+        "columns": [
+          "城市",
+          "RD投入_亿元",
+          "专利授权数_件",
+          "高新企业数_家",
+          "GDP增长率_百分比"
+        ]
+      }
+    },
+    {
+      "step": "preprocessing",
+      "status": "failed",
+      "elapsed_sec": 0.172,
+      "output_keys": [],
+      "warnings": [],
+      "error": "DataProfiler.__init__() got an unexpected keyword argument 'df'",
+      "metadata": {}
+    },
+    {
+      "step": "algorithm_recommendation",
+      "status": "failed",
+      "elapsed_sec": 11.281,
+      "output_keys": [],
+      "warnings": [],
+      "error": "AlgorithmRecommender.__init__() got an unexpected keyword argument 'config'",
+      "metadata": {}
+    },
+    {
+      "step": "weight_calculation",
+      "status": "failed",
+      "elapsed_sec": 0.079,
+      "output_keys": [],
+      "warnings": [],
+      "error": "\"None of [Index(['R&D投入', '专利数量', '高新企业数', 'GDP增长率'], dtype='object')] are in the [columns]\"",
+      "metadata": {}
+    },
+    {
+      "step": "evaluation_model",
+      "status": "failed",
+      "elapsed_sec": 0.0,
+      "output_keys": [],
+      "warnings": [],
+      "error": "\"None of [Index(['R&D投入', '专利数量', '高新企业数', 'GDP增长率'], dtype='object')] are in the [columns]\"",
+      "metadata": {}
+    },
+    {
+      "step": "sensitivity_analysis",
+      "status": "failed",
+      "elapsed_sec": 0.0,
+      "output_keys": [],
+      "warnings": [],
+      "error": "\"None of [Index(['R&D投入', '专利数量', '高新企业数', 'GDP增长率'], dtype='object')] are in the [columns]\"",
+      "metadata": {}
+    },
+    {
+      "step": "result_consolidation",
+      "status": "success",
+      "elapsed_sec": 0.0,
+      "output_keys": [],
+      "warnings": [],
+      "error": null,
+      "metadata": {}
+    },
+    {
+      "step": "latex_generation",
+      "status": "success",
+      "elapsed_sec": 22.688,
+      "output_keys": [
+        "latex_report"
+      ],
+      "warnings": [
+        "LaTeXBuilder 未加载，使用简易模板"
+      ],
+      "error": null,
+      "metadata": {}
+    },
+    {
+      "step": "code_generation",
+      "status": "failed",
+      "elapsed_sec": 0.0,
+      "output_keys": [],
+      "warnings": [],
+      "error": "CodeBuilder.__init__() got an unexpected keyword argument 'config'",
+      "metadata": {}
+    },
+    {
+      "step": "plot_generation",
+      "status": "failed",
+      "elapsed_sec": 0.0,
+      "output_keys": [],
+      "warnings": [],
+      "error": "PlotBuilder.__init__() got an unexpected keyword argument 'config'",
+      "metadata": {}
+    }
+  ],
+  "output_paths": {
+    "latex": "output\\reports\\shumo.tex"
+  },
+  "warnings": [
+    "预处理阶段异常，使用原始数据继续: DataProfiler.__init__() got an unexpected keyword argument 'df'",
+    "算法推荐异常，使用默认配置: AlgorithmRecommender.__init__() got an unexpected keyword argument 'config'",
+    "权重计算异常，使用等权重: \"None of [Index(['R&D投入', '专利数量', '高新企业数', 'GDP增长率'], dtype='object')] are in the [columns]\""
+  ],
+  "summary": {
+    "weight_method": "entropy",
+    "eval_method": "topsis",
+    "weights": 

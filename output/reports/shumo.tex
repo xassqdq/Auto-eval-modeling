@@ -1,0 +1,48 @@
+\documentclass[12pt]{ctexart}
+\usepackage{booktabs,amsmath,graphicx,geometry}
+\geometry{a4paper,margin=2.5cm}
+\begin{document}
+\title{shumo 综合评价报告}
+\author{AutoEval-Modeling 自动生成}
+\date{2026年05月16日}
+\maketitle
+
+\section{模型建立}
+
+本文采用CRITIC法确定指标权重，并运用TOPSIS法进行综合评价。
+
+\subsection{指标权重}
+\begin{table}[htbp]\centering
+\caption{CRITIC法计算结果}
+\begin{tabular}{lcccc}
+\toprule
+指标 & RD投入_亿元 & 专利授权数_件 & 高新企业数_家 & GDP增长率_百分比 \\
+\midrule
+权重 & 0.1663 & 0.1642 & 0.1718 & 0.4977 \\
+\bottomrule
+\end{tabular}\end{table}
+
+\subsection{综合评价结果}
+\begin{table}[htbp]\centering
+\caption{TOPSIS综合评价结果}
+\begin{tabular}{lcc}
+\toprule
+评价对象 & 综合得分 & 排名 \\
+\midrule
+成都 & 0.6464 & 1 \\
+合肥 & 0.6372 & 2 \\
+杭州 & 0.5753 & 3 \\
+长沙 & 0.5164 & 4 \\
+武汉 & 0.4219 & 5 \\
+北京 & 0.3965 & 6 \\
+深圳 & 0.3797 & 7 \\
+西安 & 0.3329 & 8 \\
+上海 & 0.2815 & 9 \\
+南京 & 0.1843 & 10 \\
+\bottomrule
+\end{tabular}\end{table}
+
+\subsection{灵敏度分析}
+对各指标权重在 $\pm 20\%$ 范围内进行 OAT 扰动分析，结果表明排名整体部分不稳健。
+
+\end{document}

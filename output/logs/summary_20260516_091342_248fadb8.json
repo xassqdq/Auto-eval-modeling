@@ -1,0 +1,128 @@
+{
+  "session_id": "20260516_091342_248fadb8",
+  "status": "PARTIAL",
+  "total_time": 4.112958908081055,
+  "weight_method": "critic",
+  "eval_method": "topsis",
+  "steps": {
+    "data_loading": {
+      "status": "ok",
+      "time": 0.0057392120361328125
+    },
+    "preprocessing": {
+      "status": "ok",
+      "time": 0.1544792652130127
+    },
+    "algorithm_recommendation": {
+      "status": "ok",
+      "time": 0.351330041885376
+    },
+    "weight_calculation": {
+      "status": "ok",
+      "time": 0.0
+    },
+    "evaluation_model": {
+      "status": "ok",
+      "time": 0.0
+    },
+    "sensitivity_analysis": {
+      "status": "ok",
+      "time": 0.0025005340576171875
+    },
+    "result_consolidation": {
+      "status": "ok",
+      "time": 0
+    },
+    "latex_generation": {
+      "status": "ok",
+      "time": 1.4753236770629883
+    },
+    "code_generation": {
+      "status": "fail",
+      "time": 0.0029070377349853516,
+      "error": "'df_raw'"
+    },
+    "plot_generation": {
+      "status": "ok",
+      "time": 2.0505011081695557
+    }
+  },
+  "warnings": [],
+  "output_files": [
+    "output\\reports\\shumo.tex",
+    "output\\figures\\weights_critic.png",
+    "output\\figures\\ranking_topsis.png",
+    "output\\figures\\radar_chart.png",
+    "output\\figures\\corr_heatmap.png",
+    "output\\figures\\sensitivity_oat.png"
+  ],
+  "data": {
+    "profile": {
+      "n_objects": 10,
+      "n_indicators": 4,
+      "ratio_n_p": 2.5,
+      "missing_rate": 0.0,
+      "max_corr": 0.9986115301493801,
+      "mean_corr": 0.6247431355692333,
+      "mean_cv": 0.9364671498236756,
+      "descriptive": {
+        "RD投入_亿元": {
+          "min": 0.0,
+          "max": 1.0,
+          "mean": 0.3114562516291598,
+          "std": 0.326927256376749
+        },
+        "专利授权数_件": {
+          "min": 0.0,
+          "max": 1.0,
+          "mean": 0.3195521907939524,
+          "std": 0.32526865752721484
+        },
+        "高新企业数_家": {
+          "min": 0.0,
+          "max": 1.0,
+          "mean": 0.34774774774774775,
+          "std": 0.3399752207415797
+        },
+        "GDP增长率_百分比": {
+          "min": 0.0,
+          "max": 1.0,
+          "mean": 0.47000000000000003,
+          "std": 0.32930904093942587
+        }
+      }
+    },
+    "weight_method": "critic",
+    "eval_method": "topsis",
+    "weights": [
+      0.166269963800735,
+      0.16424690370441372,
+      0.17177789211310124,
+      0.4977052403515849
+    ],
+    "scores": [
+      0.3964984020446429,
+      0.2814832651671437,
+      0.3797497848629995,
+      0.5752621969735099,
+      0.6463639187130559,
+      0.4218763343116168,
+      0.18432075497620326,
+      0.3329476394903748,
+      0.6372486571863852,
+      0.5164286577301709
+    ],
+    "ranking": [
+      6,
+      9,
+      7,
+      3,
+      1,
+      5,
+      10,
+      8,
+      2,
+      4
+    ]
+  }
+}

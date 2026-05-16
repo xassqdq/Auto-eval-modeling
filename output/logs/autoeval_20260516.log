@@ -1,0 +1,37 @@
+2026-05-16 08:44:06 [INFO    ] autoeval.main             | 执行命令: init --template basic
+2026-05-16 08:45:32 [INFO    ] autoeval.main             | 执行命令: run --config my_project.yaml
+2026-05-16 08:45:40 [DEBUG   ] autoeval.main             | ConfigLoader 解析失败: 配置文件 'E:\workingPlayer\日常学习\python\auto-eval-modeling\my_project.yaml' 格式错误: 1 validation error for WorkflowConfig
+data
+  Field required [type=missing, input_value={'project_name': 'shumo',...': 42, 'max_retries': 2}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/missing —— 尝试扁平格式降级解析
+2026-05-16 08:45:40 [INFO    ] autoeval.main             | 通过 PyYAML 降级解析加载配置
+2026-05-16 08:45:40 [INFO    ] autoeval.engine.20260516  | ============================================================
+2026-05-16 08:45:40 [INFO    ] autoeval.engine.20260516  | AutoEval-Modeling v1.0.0  会话 20260516_084540_f4cd29d7
+2026-05-16 08:45:40 [INFO    ] autoeval.engine.20260516  | ============================================================
+2026-05-16 08:45:40 [INFO    ] autoeval.engine.20260516  | [阶段0] 配置校验...
+2026-05-16 08:45:40 [INFO    ] autoeval.engine.20260516  |   配置校验通过 ✓
+2026-05-16 08:45:40 [INFO    ] autoeval.engine.20260516  | [阶段1] 数据加载: data/city_innovation.csv
+2026-05-16 08:45:40 [INFO    ] autoeval.engine.20260516  |   数据加载完成: 10 行 × 5 列
+2026-05-16 08:45:40 [INFO    ] autoeval.engine.20260516  | [阶段2] 数据预处理...
+2026-05-16 08:45:41 [ERROR   ] autoeval.engine.20260516  |   预处理失败: DataProfiler.__init__() got an unexpected keyword argument 'df'
+2026-05-16 08:45:41 [DEBUG   ] autoeval.engine.20260516  | Traceback (most recent call last):
+  File "E:\workingPlayer\日常学习\python\auto-eval-modeling\src\main.py", line 855, in _phase_preprocessing
+    profiler = DataProfiler(
+TypeError: DataProfiler.__init__() got an unexpected keyword argument 'df'
+
+2026-05-16 08:45:41 [INFO    ] autoeval.engine.20260516  | [阶段3] 算法推荐...
+2026-05-16 08:45:52 [WARNING ] autoeval.engine.20260516  |   算法推荐失败，使用默认值 entropy-topsis: AlgorithmRecommender.__init__() got an unexpected keyword argument 'config'
+2026-05-16 08:45:52 [INFO    ] autoeval.engine.20260516  | [阶段4] 核心工作流执行（entropy → topsis）...
+2026-05-16 08:45:52 [DEBUG   ] autoeval.main             | 模块 src.core.workflow 中未找到 WorkflowEngine: module 'src.core.workflow' has no attribute 'WorkflowEngine'
+2026-05-16 08:45:52 [WARNING ] autoeval.engine.20260516  |   WorkflowEngine 模块未加载，使用内置简化执行器
+2026-05-16 08:45:52 [ERROR   ] autoeval.engine.20260516  |   权重计算失败: "None of [Index(['R&D投入', '专利数量', '高新企业数', 'GDP增长率'], dtype='object')] are in the [columns]"
+2026-05-16 08:45:52 [ERROR   ] autoeval.engine.20260516  |   综合评价失败: "None of [Index(['R&D投入', '专利数量', '高新企业数', 'GDP增长率'], dtype='object')] are in the [columns]"
+2026-05-16 08:45:52 [WARNING ] autoeval.engine.20260516  |   灵敏度分析失败: "None of [Index(['R&D投入', '专利数量', '高新企业数', 'GDP增长率'], dtype='object')] are in the [columns]"
+2026-05-16 08:45:52 [INFO    ] autoeval.engine.20260516  | [阶段5] 生成输出文件...
+2026-05-16 08:46:15 [DEBUG   ] src.generators.plot_builder | 绘图样式已配置 [font=SimHei, size=11]
+2026-05-16 08:46:15 [DEBUG   ] autoeval.main             | 模块 src.generators.latex_builder 中未找到 LaTeXBuilder: module 'src.generators.latex_builder' has no attribute 'LaTeXBuilder'
+2026-05-16 08:46:15 [INFO    ] autoeval.engine.20260516  |   LaTeX 报告: output\reports\shumo.tex
+2026-05-16 08:46:15 [WARNING ] autoeval.engine.20260516  |   代码生成失败: CodeBuilder.__init__() got an unexpected keyword argument 'config'
+2026-05-16 08:46:15 [WARNING ] autoeval.engine.20260516  |   图表生成失败: PlotBuilder.__init__() got an unexpected keyword argument 'config'
+2026-05-16 08:46:15 [WARNING ] autoeval.engine.20260516  | 流程部分完成，7 个步骤失败: ['preprocessing', 'algorithm_recommendation', 'weight_calculation', 'evaluation_model', 'sensitivity_analysis', 'code_generation', 'plot_generation']
+2026-05-16 08:46:15 [WARNING ] autoeval.engine.20260516  | 执行摘要保存失败: Object of type ndarray is not JSON serializable

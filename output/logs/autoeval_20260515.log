@@ -1,0 +1,33 @@
+2026-05-15 20:17:28 [INFO    ] autoeval.main             | 执行命令: init --template basic
+2026-05-15 21:29:30 [INFO    ] autoeval.main             | 执行命令: run --config configs/entropy_topsis.yaml
+2026-05-15 21:29:34 [ERROR   ] autoeval.main             | 配置加载失败: 'ConfigLoader' object has no attribute 'to_engine_config'
+2026-05-15 21:34:02 [INFO    ] autoeval.main             | 执行命令: run --config configs/entropy_topsis.yaml
+2026-05-15 21:34:03 [ERROR   ] autoeval.main             | 配置加载失败: 'ConfigLoader' object has no attribute 'to_engine_config'
+2026-05-15 21:35:16 [INFO    ] autoeval.main             | 执行命令: run --config configs/entropy_topsis.yaml
+2026-05-15 21:35:17 [ERROR   ] autoeval.main             | 配置加载失败: 'ConfigLoader' object has no attribute 'to_engine_config'
+2026-05-15 21:51:32 [INFO    ] autoeval.main             | 执行命令: run --config configs/entropy_topsis.yaml
+2026-05-15 21:51:33 [ERROR   ] autoeval.main             | 配置加载失败: 尚未加载任何配置文件，请先调用 load() 或 load_from_dict()
+2026-05-15 21:58:09 [INFO    ] autoeval.main             | 执行命令: run --config configs/entropy_topsis.yaml
+2026-05-15 21:58:10 [DEBUG   ] autoeval.main             | ConfigLoader 解析失败: 配置文件 'E:\workingPlayer\日常学习\python\auto-eval-modeling\configs\entropy_topsis.yaml' 格式错误: 2 validation errors for WorkflowConfig
+data.indicator_directions
+  Input should be a valid dictionary [type=dict_type, input_value=['positive', 'positive', 'positive', 'positive'], input_type=list]
+    For further information visit https://errors.pydantic.dev/2.13/v/dict_type
+output.latex_template
+  Input should be 'mcm', 'cumcm' or 'academic' [type=literal_error, input_value='ctex_article', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/literal_error —— 尝试扁平格式降级解析
+2026-05-15 21:58:10 [INFO    ] autoeval.main             | 通过 PyYAML 降级解析加载配置
+2026-05-15 21:58:10 [INFO    ] autoeval.engine.20260515  | ============================================================
+2026-05-15 21:58:10 [INFO    ] autoeval.engine.20260515  | AutoEval-Modeling v1.0.0  会话 20260515_215810_f84b7faf
+2026-05-15 21:58:10 [INFO    ] autoeval.engine.20260515  | ============================================================
+2026-05-15 21:58:10 [INFO    ] autoeval.engine.20260515  | [阶段0] 配置校验...
+2026-05-15 21:58:10 [ERROR   ] autoeval.engine.20260515  | ❌ 致命错误: 配置校验失败:
+  - 数据文件不存在: data/city_innovation.csv
+2026-05-15 21:58:10 [DEBUG   ] autoeval.engine.20260515  | Traceback (most recent call last):
+  File "E:\workingPlayer\日常学习\python\auto-eval-modeling\src\main.py", line 743, in run
+    self._phase_validate_config()
+  File "E:\workingPlayer\日常学习\python\auto-eval-modeling\src\main.py", line 801, in _phase_validate_config
+    raise _FatalError(msg)
+_FatalError: 配置校验失败:
+  - 数据文件不存在: data/city_innovation.csv
+
+2026-05-15 21:58:10 [DEBUG   ] autoeval.engine.20260515  | 执行摘要已保存: E:\workingPlayer\日常学习\python\auto-eval-modeling\output\logs\run_20260515_215810_f84b7faf.json

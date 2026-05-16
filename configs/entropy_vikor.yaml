@@ -1,0 +1,56 @@
+# ============================================================
+# 熵权法 + VIKOR 折中排序
+# 适用场景：需要在群体效用最大化与个体遗憾最小化之间折中
+# ============================================================
+
+project:
+  name: "基于熵权-VIKOR的折中排序评价"
+  description: "熵权法确定客观权重，VIKOR寻求群体效用与个体遗憾的折中解"
+
+data:
+  file: "data/city_innovation.csv"
+  object_column: "城市"
+  criteria_columns:
+    - "R&D投入"
+    - "专利数"
+    - "高新企业数"
+    - "GDP增长率"
+  directions: [max, max, max, max]
+
+preprocessing:
+  missing_strategy: mean
+  normalization: minmax
+
+workflow:
+  - step: preprocess
+
+  - step: weight
+    method: entropy
+    output_key: "w_entropy"
+
+  - step: evaluate
+    method: vikor
+    weight_key: "w_entropy"
+    params:
+      v: 0.5                    # 决策机制系数 (0=个体遗憾, 1=群体效用, 0.5=折中)
+    output_key: "eval_vikor"
+
+  # 同时用 TOPSIS 做对比验证
+  - step: evaluate
+    method: topsis
+    weight_key: "w_entropy"
+    output_key: "eval_topsis"
+
+  - step: rank_compare
+    eval_keys: ["eval_vikor", "eval_topsis"]
+    params:
+      metrics: [kendall_tau, spearman_rho]
+
+output:
+  directory: "output/entropy_vikor/"
+  format: [latex, python, figures]
+  language: cn
+  figures:
+    - weights_bar
+    - ranking_bar
+    - score_distribution

@@ -1,0 +1,50 @@
+workflow_name: "AHP-TOPSIS 综合评价"
+version: "1.0"
+language: "zh"
+
+data:
+  file_path: "data/enterprise_performance.xlsx"
+  object_column: "企业"
+  indicator_columns: null        # null 表示自动识别
+  indicator_directions:
+    - positive
+    - positive
+    - negative
+    - positive
+    - positive
+
+preprocess:
+  handle_missing: "fill_mean"
+  normalize: "minmax"
+  check_correlation: false
+
+weights:
+  method: "ahp"
+  params:
+    cr_threshold: 0.1
+    weight_method: "eigenvector"
+  # 手动提供判断矩阵（5×5 指标）
+  judgment_matrix:
+    - [1,   2,   3,   4,   5  ]
+    - [0.5, 1,   2,   3,   4  ]
+    - [0.33, 0.5, 1,  2,   3  ]
+    - [0.25, 0.33, 0.5, 1, 2  ]
+    - [0.2, 0.25, 0.33, 0.5, 1]
+
+evaluation:
+  method: "topsis"
+  params:
+    normalization: "vector"
+
+sensitivity:
+  enabled: true
+  method: "oat"
+  perturbation: 0.15
+
+output:
+  directory: "output/"
+  generate_latex: true
+  generate_script: true
+  figure_format: "pdf"
+  figure_dpi: 300
+  latex_template: "mcm"

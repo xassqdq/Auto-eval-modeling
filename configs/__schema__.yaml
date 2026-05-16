@@ -1,0 +1,210 @@
+# ============================================================
+# AutoEval-Modeling 配置文件字段约束说明 (供 Pydantic 校验参考)
+# 本文件不直接运行，仅作为文档
+# ============================================================
+
+_schema_version: "1.0"
+
+fields:
+  project:
+    name:
+      type: string
+      required: true
+      description: "项目名称，将用于报告标题"
+    description:
+      type: string
+      required: false
+      default: ""
+    author:
+      type: string
+      required: false
+      default: "AutoEval-Modeling 自动生成"
+    version:
+      type: string
+      required: false
+      default: "1.0"
+
+  data:
+    file:
+      type: string
+      required: true
+      description: "数据文件路径（相对于项目根目录），支持 .csv / .xlsx / .xls"
+    sheet_name:
+      type: string
+      required: false
+      default: null
+      description: "Excel 工作表名，CSV 时忽略"
+    object_column:
+      type: string
+      required: true
+      description: "评价对象所在列的列名"
+    criteria_columns:
+      type: list[string]
+      required: true
+      min_length: 2
+      description: "评价指标列名列表，至少2个"
+    directions:
+      type: list[enum]
+      required: true
+      allowed: [max, min, moderate]
+      description: "各指标方向，与 criteria_columns 一一对应"
+    moderate_params:
+      type: dict
+      required: false
+      description: "适度型指标参数 {列名: {best: float, tolerance: float}}"
+    time_column:
+      type: string
+      required: false
+      default: null
+      description: "时间列名，动态评价时必填"
+    group_column:
+      type: string
+      required: false
+      default: null
+
+  preprocessing:
+    missing_strategy:
+      type: enum
+      allowed: [mean, median, mode, drop, knn, none]
+      default: mean
+    outlier_strategy:
+      type: enum
+      allowed: [clip, remove, none]
+      default: none
+    outlier_method:
+      type: enum
+      allowed: [iqr, zscore, isolation_forest]
+      default: iqr
+    outlier_threshold:
+      type: float
+      default: 1.5
+      range: [0.5, 5.0]
+    normalization:
+      type: enum
+      allowed: [minmax, zscore, maxabs, none]
+      default: minmax
+    correlation_check:
+      type: bool
+      default: false
+    correlation_threshold:
+      type: float
+      default: 0.9
+      range: [0.5, 1.0]
+    auto_reduce:
+      type: bool
+      default: false
+    reduce_variance_threshold:
+      type: float
+      default: 0.85
+      range: [0.5, 0.99]
+
+  workflow:
+    type: list[WorkflowStep]
+    min_length: 1
+    description: "工作流步骤列表，按顺序执行"
+
+    WorkflowStep:
+      step:
+        type: enum
+        required: true
+        allowed: [preprocess, reduce, weight, evaluate, combine, sensitivity, rank_compare, cluster]
+      method:
+        type: string
+        required: true  # preprocess 步骤除外
+        description: "算法方法名（见 README 速查表）"
+      params:
+        type: dict
+        required: false
+        default: {}
+      output_key:
+        type: string
+        required: false
+        description: "结果键名，供后续步骤引用"
+      weight_key:
+        type: string
+        required: false
+        description: "evaluate 步骤引用的权重键名"
+      eval_key:
+        type: string
+        required: false
+        description: "sensitivity 步骤引用的评价结果键名"
+      sources:
+        type: list[string]
+        required: false
+        description: "combine 步骤引用的多个权重键名"
+      eval_keys:
+        type: list[string]
+        required: false
+        description: "rank_compare 步骤引用的多个评价结果键名"
+
+  output:
+    directory:
+      type: string
+      default: "output/"
+    format:
+      type: list[enum]
+      allowed: [latex, python, figures, excel, json]
+      default: [latex, python, figures]
+    language:
+      type: enum
+      allowed: [cn, en]
+      default: cn
+    latex_template:
+      type: enum
+      allowed: [cn_competition, en_mcm, academic, custom]
+      default: cn_competition
+    figure_format:
+      type: enum
+      allowed: [png, pdf, svg]
+      default: png
+    figure_dpi:
+      type: int
+      default: 300
+      range: [72, 600]
+    figures:
+      type: list[enum]
+      allowed:
+        - weights_bar
+        - ranking_bar
+        - radar_chart
+        - correlation_heatmap
+        - sensitivity_curve
+        - score_distribution
+        - judgment_heatmap
+        - scree_plot
+        - loading_plot
+        - trend_line
+        - efficiency_bar
+        - dominance_graph
+      default: [weights_bar, ranking_bar, correlation_heatmap]
+    code_style:
+      add_comments:
+        type: bool
+        default: true
+      add_docstrings:
+        type: bool
+        default: true
+      standalone:
+        type: bool
+        default: true
+
+  advanced:
+    random_seed:
+      type: int
+      default: 42
+    float_precision:
+      type: int
+      default: 6
+      range: [2, 10]
+    parallel:
+      type: bool
+      default: false
+    verbose:
+      type: bool
+      default: true
+    log_file:
+      type: string
+      default: "output/logs/run.log"
+    save_intermediate:
+      type: bool
+      default: true

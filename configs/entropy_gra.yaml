@@ -1,0 +1,55 @@
+# ============================================================
+# 熵权法 + 灰色关联分析 (GRA)
+# 适用场景：样本量较小、数据信息不完全
+# ============================================================
+
+project:
+  name: "基于熵权-灰色关联分析的综合评价"
+  description: "熵权法确定权重，灰色关联分析计算各对象与理想方案的相似度"
+
+data:
+  file: "data/city_innovation.csv"
+  object_column: "城市"
+  criteria_columns:
+    - "R&D投入"
+    - "专利数"
+    - "高新企业数"
+    - "GDP增长率"
+  directions: [max, max, max, max]
+
+preprocessing:
+  missing_strategy: mean
+  normalization: minmax
+  correlation_check: false       # GRA 对相关性不敏感
+
+workflow:
+  - step: preprocess
+
+  - step: weight
+    method: entropy
+    output_key: "w_entropy"
+
+  - step: evaluate
+    method: gra
+    weight_key: "w_entropy"
+    params:
+      rho: 0.5                  # 分辨系数
+    output_key: "eval_gra"
+
+  - step: sensitivity
+    method: oat
+    eval_key: "eval_gra"
+    weight_key: "w_entropy"
+    params:
+      perturbation_range: 0.1
+      perturbation_steps: 20
+
+output:
+  directory: "output/entropy_gra/"
+  format: [latex, python, figures]
+  language: cn
+  figures:
+    - weights_bar
+    - ranking_bar
+    - correlation_heatmap
+    - sensitivity_curve

@@ -1,0 +1,54 @@
+# ============================================================
+# DEA 数据包络分析
+# 适用场景：投入-产出效率评价（如学校/医院/企业运营效率）
+# ============================================================
+
+project:
+  name: "基于DEA的运营效率评价"
+  description: "CCR/BCC模型评价各决策单元的技术效率与规模效率"
+
+data:
+  file: "data/enterprise_performance.xlsx"
+  object_column: "企业"
+  criteria_columns:
+    - "员工数"
+    - "资产总额"
+    - "营业收入"
+    - "净利润"
+  # DEA 需要区分投入/产出，通过 directions 标记：
+  # min = 投入指标（越小越好 → 投入）
+  # max = 产出指标（越大越好 → 产出）
+  directions: [min, min, max, max]
+
+preprocessing:
+  missing_strategy: drop         # DEA 对缺失值敏感，建议直接删除
+  outlier_strategy: none
+  normalization: none            # DEA 不需要标准化
+
+workflow:
+  - step: preprocess
+
+  - step: evaluate
+    method: dea
+    params:
+      model_type: "CCR"          # CCR (规模报酬不变) / BCC (规模报酬可变)
+      orientation: "input"       # input (投入导向) / output (产出导向)
+      compute_slack: true        # 是否计算松弛变量
+      super_efficiency: false    # 是否计算超效率
+    output_key: "eval_dea_ccr"
+
+  - step: evaluate
+    method: dea
+    params:
+      model_type: "BCC"
+      orientation: "input"
+      compute_slack: true
+    output_key: "eval_dea_bcc"
+
+output:
+  directory: "output/dea_efficiency/"
+  format: [latex, python, figures, excel]
+  language: cn
+  figures:
+    - efficiency_bar
+    - score_distribution

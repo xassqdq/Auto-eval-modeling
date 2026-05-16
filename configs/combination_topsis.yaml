@@ -1,0 +1,73 @@
+# ============================================================
+# 组合赋权（AHP + 熵权）+ TOPSIS 综合评价
+# 适用场景：兼顾主观经验与客观数据的高可信度评价
+# ============================================================
+
+project:
+  name: "基于组合赋权-TOPSIS的综合评价"
+  description: "AHP主观权重与熵权法客观权重通过博弈论组合，TOPSIS综合排序"
+
+data:
+  file: "data/city_innovation.csv"
+  object_column: "城市"
+  criteria_columns:
+    - "R&D投入"
+    - "专利数"
+    - "高新企业数"
+    - "GDP增长率"
+  directions: [max, max, max, max]
+
+preprocessing:
+  missing_strategy: mean
+  normalization: minmax
+  correlation_check: true
+
+workflow:
+  - step: preprocess
+
+  - step: weight
+    method: ahp
+    params:
+      judgment_matrix:
+        - [1,     2,     5,     3    ]
+        - [0.5,   1,     3,     2    ]
+        - [0.2,   0.333, 1,     0.5  ]
+        - [0.333, 0.5,   2,     1    ]
+      auto_fix_consistency: true
+    output_key: "w_ahp"
+
+  - step: weight
+    method: entropy
+    params: {}
+    output_key: "w_entropy"
+
+  - step: combine
+    method: game_theory
+    sources: ["w_ahp", "w_entropy"]
+    params: {}
+    output_key: "w_combined"
+
+  - step: evaluate
+    method: topsis
+    weight_key: "w_combined"
+    output_key: "eval_topsis"
+
+  - step: sensitivity
+    method: oat
+    eval_key: "eval_topsis"
+    weight_key: "w_combined"
+    params:
+      perturbation_range: 0.1
+      perturbation_steps: 20
+
+output:
+  directory: "output/combination_topsis/"
+  format: [latex, python, figures]
+  language: cn
+  figures:
+    - weights_bar          # 将自动绘制三种权重的分组对比
+    - judgment_heatmap
+    - ranking_bar
+    - radar_chart
+    - sensitivity_curve
+    - correlation_heatmap

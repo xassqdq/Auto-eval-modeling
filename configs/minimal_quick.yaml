@@ -1,0 +1,29 @@
+# ============================================================
+# 最小化快速评价 — 最少配置，最快出结果
+# 仅需指定数据文件和指标，其余全部使用默认值
+# ============================================================
+
+project:
+  name: "快速综合评价"
+
+data:
+  file: "data/city_innovation.csv"
+  object_column: "城市"
+  criteria_columns: ["R&D投入", "专利数", "高新企业数", "GDP增长率"]
+  directions: [max, max, max, max]
+
+# preprocessing 使用全局默认值（mean填充、minmax标准化）
+
+workflow:
+  - step: preprocess
+  - step: weight
+    method: entropy
+    output_key: "w"
+  - step: evaluate
+    method: topsis
+    weight_key: "w"
+    output_key: "result"
+
+output:
+  format: [python, figures]
+  # 不生成 LaTeX，最快速度出结果

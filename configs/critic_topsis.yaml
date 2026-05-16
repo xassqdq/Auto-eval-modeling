@@ -1,0 +1,56 @@
+# ============================================================
+# CRITIC法客观赋权 + TOPSIS 综合评价
+# 适用场景：指标间相关性显著，需同时考虑对比强度与冲突性
+# ============================================================
+
+project:
+  name: "基于CRITIC-TOPSIS的综合评价"
+  description: "CRITIC法兼顾指标变异性与相关性确定权重，TOPSIS综合排序"
+
+data:
+  file: "data/city_innovation.csv"
+  object_column: "城市"
+  criteria_columns:
+    - "R&D投入"
+    - "专利数"
+    - "高新企业数"
+    - "GDP增长率"
+  directions: [max, max, max, max]
+
+preprocessing:
+  missing_strategy: mean
+  outlier_strategy: none
+  normalization: zscore          # CRITIC 通常配合 Z-score 标准化
+  correlation_check: true
+  correlation_threshold: 0.85
+
+workflow:
+  - step: preprocess
+
+  - step: weight
+    method: critic
+    params: {}
+    output_key: "w_critic"
+
+  - step: evaluate
+    method: topsis
+    weight_key: "w_critic"
+    output_key: "eval_topsis"
+
+  - step: sensitivity
+    method: oat
+    eval_key: "eval_topsis"
+    weight_key: "w_critic"
+    params:
+      perturbation_range: 0.1
+      perturbation_steps: 20
+
+output:
+  directory: "output/critic_topsis/"
+  format: [latex, python, figures]
+  language: cn
+  figures:
+    - weights_bar
+    - correlation_heatmap
+    - ranking_bar
+    - sensitivity_curve

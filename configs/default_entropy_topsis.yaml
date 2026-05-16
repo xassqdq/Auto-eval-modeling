@@ -1,0 +1,72 @@
+# ============================================================
+# AutoEval-Modeling 工作流配置文件
+# 方案: 熵权法-TOPSIS 综合评价（最常用的客观赋权方案）
+# ============================================================
+
+workflow_name: "entropy_topsis_eval"
+fail_fast: true
+max_retries: 1
+parallel: false
+
+nodes:
+  # ---- Step 1: 数据加载 ----
+  - node_id: "load"
+    type: "DataLoadNode"
+    dependencies: []
+    config:
+      file_path: "data/city_innovation.csv"
+      object_col: "城市"
+      # indicator_cols 为空时自动选取所有数值列
+      indicator_cols: null
+      # 指标方向: 1=正向, -1=负向 (与 indicator_cols 顺序一致)
+      direction: [1, 1, 1, 1, -1, 1]
+      encoding: "utf-8"
+
+  # ---- Step 2: 数据预处理 ----
+  - node_id: "preprocess"
+    type: "PreprocessNode"
+    dependencies: ["load"]
+    config:
+      method: "minmax"           # minmax | zscore | maxabs
+      handle_missing: "mean"     # mean | median | drop | zero
+      handle_outliers: false
+      outlier_std: 3.0
+
+  # ---- Step 3: 客观赋权（熵权法）----
+  - node_id: "weight"
+    type: "WeightNode"
+    dependencies: ["preprocess"]
+    config:
+      method: "entropy"          # entropy | critic | ahp | std_dev | combination
+
+  # ---- Step 4: 综合评价（TOPSIS）----
+  - node_id: "eval"
+    type: "EvaluationNode"
+    dependencies: ["weight"]
+    config:
+      method: "topsis"           # topsis | vikor | gra | fuzzy | rsr | dea
+
+  # ---- Step 5: 权重灵敏度分析 ----
+  - node_id: "sensitivity"
+    type: "SensitivityNode"
+    dependencies: ["eval"]
+    config:
+      perturbation_range: 0.30   # ±30% 权重扰动
+      n_steps: 21                # 扰动步数（奇数）
+      run_rank_consistency: false
+
+  # ---- Step 6: 结果汇总 ----
+  - node_id: "consolidate"
+    type: "ConsolidationNode"
+    dependencies: ["sensitivity"]
+    config: {}
+
+# ---- 输出设置 ----
+output:
+  base_dir: "output"
+  generate_latex: true
+  generate_code: true
+  generate_plots: true
+  language: "zh"               # zh | en
+  plot_format: "png"           # png | pdf | svg
+  plot_dpi: 150

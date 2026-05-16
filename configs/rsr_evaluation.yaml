@@ -1,0 +1,46 @@
+# ============================================================
+# 秩和比法 (RSR) 综合评价
+# 适用场景：非参数排序，对数据分布无严格要求
+# ============================================================
+
+project:
+  name: "基于秩和比法的综合评价"
+  description: "RSR 非参数编秩排序，结合 Probit 回归进行分档"
+
+data:
+  file: "data/city_innovation.csv"
+  object_column: "城市"
+  criteria_columns:
+    - "R&D投入"
+    - "专利数"
+    - "高新企业数"
+    - "GDP增长率"
+  directions: [max, max, max, max]
+
+preprocessing:
+  missing_strategy: mean
+  normalization: none            # RSR 基于秩次，不需要标准化
+
+workflow:
+  - step: preprocess
+
+  - step: weight
+    method: entropy
+    output_key: "w_entropy"
+
+  - step: evaluate
+    method: rsr
+    weight_key: "w_entropy"      # 加权RSR；不传则等权
+    params:
+      use_probit: true           # 是否用 Probit 回归分档
+      grade_count: 4             # 分档数量
+      grade_names: ["优", "良", "中", "差"]
+    output_key: "eval_rsr"
+
+output:
+  directory: "output/rsr_evaluation/"
+  format: [latex, python, figures]
+  language: cn
+  figures:
+    - weights_bar
+    - ranking_bar

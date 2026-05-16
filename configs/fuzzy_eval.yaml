@@ -1,0 +1,56 @@
+# ============================================================
+# AHP + 模糊综合评价
+# 适用场景：评价标准含模糊语义（优/良/中/差），需处理主观判断
+# ============================================================
+
+project:
+  name: "基于AHP-模糊综合评价的等级判定"
+  description: "AHP确定权重，模糊综合评价法进行等级判定"
+
+data:
+  file: "data/enterprise_performance.xlsx"
+  object_column: "企业"
+  criteria_columns:
+    - "盈利能力"
+    - "偿债能力"
+    - "运营能力"
+    - "发展能力"
+  directions: [max, max, max, max]
+
+preprocessing:
+  missing_strategy: mean
+  normalization: none            # 模糊评价通常不做标准化（由隶属函数处理）
+
+workflow:
+  - step: preprocess
+
+  - step: weight
+    method: ahp
+    params:
+      judgment_matrix:
+        - [1,   3,   5,   2  ]
+        - [0.333, 1,   3,   1  ]
+        - [0.2, 0.333, 1,   0.5]
+        - [0.5, 1,   2,   1  ]
+      auto_fix_consistency: true
+    output_key: "w_ahp"
+
+  - step: evaluate
+    method: fuzzy
+    weight_key: "w_ahp"
+    params:
+      grade_names: ["优秀", "良好", "中等", "较差"]
+      # 隶属函数类型：gaussian / trapezoidal / triangular / manual
+      membership_type: "gaussian"
+      # 若 manual，需提供 R_matrix（每个对象一个评价矩阵）
+      # gaussian 参数由数据自动拟合
+      operator: "weighted_average"   # 合成算子: weighted_average / max_min
+    output_key: "eval_fuzzy"
+
+output:
+  directory: "output/fuzzy_eval/"
+  format: [latex, python, figures]
+  language: cn
+  figures:
+    - weights_bar
+    - judgment_heatmap

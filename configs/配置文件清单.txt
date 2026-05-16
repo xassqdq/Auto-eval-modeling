@@ -1,0 +1,17 @@
+tree configs/
+
+# configs/
+# ├── __schema__.yaml              ← 字段约束说明文档
+# ├── default_ahp_topsis.yaml      ← AHP + TOPSIS
+# ├── entropy_topsis.yaml          ← 熵权 + TOPSIS
+# ├── critic_topsis.yaml           ← CRITIC + TOPSIS
+# ├── combination_topsis.yaml      ← 组合赋权 + TOPSIS
+# ├── entropy_gra.yaml             ← 熵权 + 灰色关联
+# ├── entropy_vikor.yaml           ← 熵权 + VIKOR（含TOPSIS对比）
+# ├── fuzzy_eval.yaml              ← AHP + 模糊综合评价
+# ├── pca_evaluation.yaml          ← PCA降维 + 综合评分
+# ├── dea_efficiency.yaml          ← DEA效率评价
+# ├── rsr_evaluation.yaml          ← 秩和比法
+# ├── dynamic_eval.yaml            ← 动态时序评价
+# ├── full_pipeline.yaml           ← 完整流水线（竞赛推荐）
+# └── minimal_quick.yaml           ← 最小化快速评价

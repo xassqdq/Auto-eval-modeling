@@ -1,0 +1,56 @@
+# ──────────────────────────────────────────────────────────────
+# 熵权-TOPSIS 工作流配置示例
+# ──────────────────────────────────────────────────────────────
+
+workflow_name: "熵权-TOPSIS 综合评价"
+version: "1.0"
+language: "zh"
+
+# ── 数据配置 ──────────────────────────────────────────────
+data:
+  file_path: "data/city_innovation.csv"
+  object_column: "城市"          # 评价对象列名
+  indicator_columns:             # 指标列名（留空则自动识别数值列）
+    - "R&D投入"
+    - "专利数"
+    - "高新企业数"
+    - "GDP增长率"
+  indicator_directions:          # positive/negative/interval
+    - positive
+    - positive
+    - positive
+    - positive
+
+# ── 预处理配置 ─────────────────────────────────────────────
+preprocess:
+  handle_missing: "interpolate"  # drop / fill_mean / interpolate
+  normalize: "minmax"            # minmax / zscore / none
+  check_correlation: true
+  correlation_threshold: 0.85    # 超过此值触发 PCA 降维建议
+
+# ── 赋权方法配置 ───────────────────────────────────────────
+weights:
+  method: "entropy"              # 方法标识键（见 WEIGHT_METHOD_REGISTRY）
+  params:
+    epsilon: 1.0e-12
+
+# ── 评价模型配置 ───────────────────────────────────────────
+evaluation:
+  method: "topsis"
+  params:
+    normalization: "vector"
+
+# ── 灵敏度分析 ────────────────────────────────────────────
+sensitivity:
+  enabled: true
+  method: "oat"
+  perturbation: 0.1              # ±10%
+
+# ── 输出配置 ──────────────────────────────────────────────
+output:
+  directory: "output/"
+  generate_latex: true
+  generate_script: true
+  figure_format: "png"
+  figure_dpi: 300
+  latex_template: "ctex_article"  # ctex_article / mcm / ieee

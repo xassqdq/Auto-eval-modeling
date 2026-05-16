@@ -1,0 +1,309 @@
+# ============================================================
+#  default_entropy_topsis.yaml
+#  默认配置文件 —— 熵权-TOPSIS 综合评价模型
+#  Entropy Weight + TOPSIS Multi-Criteria Decision Analysis
+#  Version : 1.0.0
+#  Author  : <your-name>
+#  Date    : 2024-01-01
+# ============================================================
+
+# ------------------------------------------------------------
+# 1. 全局元信息 / Global Meta
+# ------------------------------------------------------------
+meta:
+  project_name: "Entropy-TOPSIS Evaluation"
+  description:  "使用熵权法确定指标权重，再由 TOPSIS 法对方案进行排序"
+  version:      "1.0.0"
+  locale:       "zh_CN"          # zh_CN | en_US
+  random_seed:  42
+
+# ------------------------------------------------------------
+# 2. 数据输入 / Data Input
+# ------------------------------------------------------------
+data:
+  source: "csv"                  # csv | excel | json | database | inline
+
+  csv:
+    path:      "data/input.csv"
+    encoding:  "utf-8"           # utf-8 | gbk | latin-1
+    separator: ","
+    header_row: 0                # 列名所在行索引（0-based）
+    index_col:  0                # 行索引列（方案名称列）
+
+  excel:
+    path:       "data/input.xlsx"
+    sheet_name: "Sheet1"
+    header_row: 0
+    index_col:  0
+
+  json:
+    path:   "data/input.json"
+    orient: "records"            # records | columns | index | split
+
+  # 内联数据示例（source=inline 时生效）
+  inline:
+    alternatives:
+      - "方案A"
+      - "方案B"
+      - "方案C"
+      - "方案D"
+      - "方案E"
+    criteria:
+      - "C1"
+      - "C2"
+      - "C3"
+      - "C4"
+    matrix:                      # 行=方案，列=指标，原始数据
+      - [8.5,  3.2, 76.0, 0.92]
+      - [7.1,  4.8, 83.0, 0.85]
+      - [9.0,  2.5, 71.0, 0.95]
+      - [6.8,  5.1, 88.0, 0.78]
+      - [7.9,  3.9, 80.0, 0.88]
+
+# ------------------------------------------------------------
+# 3. 指标配置 / Criteria Configuration
+# ------------------------------------------------------------
+criteria:
+  # 全局默认方向（可被逐指标覆盖）
+  default_direction: "benefit"   # benefit（越大越好）| cost（越小越好）
+
+  # 逐指标精细配置
+  # 若此列表为空，则全部指标使用 default_direction
+  definitions:
+    - name:      "C1"
+      alias:     "经济效益"
+      direction: "benefit"
+      unit:      "万元"
+      weight_hint: null          # null = 纯客观熵权；数值 = 人工先验权重（与熵权融合）
+
+    - name:      "C2"
+      alias:     "成本"
+      direction: "cost"
+      unit:      "万元"
+      weight_hint: null
+
+    - name:      "C3"
+      alias:     "技术成熟度"
+      direction: "benefit"
+      unit:      "分"
+      weight_hint: null
+
+    - name:      "C4"
+      alias:     "可靠性"
+      direction: "benefit"
+      unit:      "无量纲"
+      weight_hint: null
+
+# ------------------------------------------------------------
+# 4. 数据预处理 / Preprocessing
+# ------------------------------------------------------------
+preprocessing:
+  # 缺失值处理
+  missing_values:
+    strategy: "mean"             # mean | median | min | max | zero | drop_row | drop_col
+    fill_value: null             # strategy=constant 时填充的数值
+
+  # 异常值处理
+  outliers:
+    enabled:   false
+    method:    "iqr"             # iqr | zscore | isolation_forest
+    threshold: 3.0               # zscore 阈值 或 IQR 倍数
+
+  # 数据标准化（熵权计算前）
+  # 注意：归一化在 entropy 模块内部强制执行，此处可额外做量纲处理
+  scale:
+    enabled: false
+    method:  "minmax"            # minmax | zscore | maxabs | robust
+
+# ------------------------------------------------------------
+# 5. 熵权法 / Entropy Weight Method
+# ------------------------------------------------------------
+entropy:
+  # 归一化方式（将原始矩阵转为 [0,1] 的比重矩阵）
+  normalization: "linear_minmax" # linear_minmax | proportion | vector
+
+  # 极小值平移量（防止 log(0) 或 0/0）
+  epsilon: 1.0e-10
+
+  # 自然对数底数
+  log_base: "e"                  # e | 2 | 10
+
+  # 熵权与先验权重的融合方式（当 weight_hint 不为 null 时）
+  weight_fusion:
+    method: "multiply"           # multiply（乘积归一化）| additive（线性加权）
+    alpha:  0.5                  # additive 时：w = alpha*prior + (1-alpha)*entropy_weight
+
+  # 输出熵值和权重到文件
+  output:
+    save_entropy_values: true
+    save_weights:        true
+    weights_path:        "output/entropy_weights.csv"
+
+# ------------------------------------------------------------
+# 6. TOPSIS 法 / TOPSIS Method
+# ------------------------------------------------------------
+topsis:
+  # 决策矩阵归一化方式
+  normalization: "vector"        # vector（向量归一化，标准 TOPSIS）
+                                 # linear_minmax | sum
+
+  # 理想解类型
+  ideal:
+    positive_ideal: "max"        # max | custom
+    negative_ideal: "min"        # min | custom
+    # 自定义理想解（positive_ideal/negative_ideal = custom 时生效）
+    custom_positive: []          # 长度须等于指标数
+    custom_negative: []
+
+  # 距离度量
+  distance:
+    metric: "euclidean"          # euclidean | manhattan | chebyshev | minkowski
+    minkowski_p: 2               # metric=minkowski 时的 p 值
+
+  # 贴近度计算
+  closeness:
+    formula: "standard"         # standard: Ci = d- / (d+ + d-)
+                                 # modified: 含权重调整的改进公式
+
+  # 排名策略
+  ranking:
+    ascending: false             # false = 贴近度越大排名越靠前
+    method:    "ordinal"         # ordinal | dense | min | max | average
+
+# ------------------------------------------------------------
+# 7. 敏感性分析 / Sensitivity Analysis
+# ------------------------------------------------------------
+sensitivity:
+  enabled: false
+
+  # 权重扰动分析
+  weight_perturbation:
+    enabled:     true
+    method:      "uniform"       # uniform | normal | monte_carlo
+    delta:       0.05            # 均匀扰动范围 ±delta
+    n_samples:   1000            # Monte Carlo 采样次数
+    seed:        42
+
+  # 指标删除分析
+  leave_one_out:
+    enabled: true
+
+  # 阈值分析
+  threshold:
+    enabled: false
+    target_rank_change: 1        # 关注的排名变动幅度
+
+# ------------------------------------------------------------
+# 8. 输出配置 / Output
+# ------------------------------------------------------------
+output:
+  directory:   "output/"
+  prefix:      "entropy_topsis"
+  timestamp:   true              # 文件名追加时间戳
+
+  # 结果表格
+  results:
+    save_csv:          true
+    save_excel:        true
+    excel_path:        "output/results.xlsx"
+    csv_path:          "output/results.csv"
+    include_columns:             # null = 输出全部列
+      - "alternative"
+      - "closeness_coefficient"
+      - "rank"
+      - "d_positive"
+      - "d_negative"
+      - "weight"                 # 各指标权重（追加列）
+
+  # 中间过程矩阵
+  intermediate:
+    save_normalized_matrix:      true
+    save_weighted_matrix:        true
+    save_ideal_solutions:        true
+    save_distance_matrix:        true
+    directory: "output/intermediate/"
+
+  # 日志
+  logging:
+    level:      "INFO"           # DEBUG | INFO | WARNING | ERROR
+    to_file:    true
+    log_path:   "output/logs/run.log"
+    format:     "%(asctime)s [%(levelname)s] %(message)s"
+
+# ------------------------------------------------------------
+# 9. 可视化 / Visualization
+# ------------------------------------------------------------
+visualization:
+  enabled: true
+  backend: "matplotlib"          # matplotlib | plotly | both
+  dpi:     150
+  theme:   "seaborn-v0_8-whitegrid"  # matplotlib style
+  palette: "tab10"               # 颜色方案
+
+  # 权重雷达图 / 柱状图
+  weights_chart:
+    enabled: true
+    type:    "bar"               # bar | radar | pie
+    save_path: "output/figures/weights.png"
+    figsize: [8, 5]
+
+  # 贴近度排名图
+  ranking_chart:
+    enabled:   true
+    type:      "horizontal_bar"  # horizontal_bar | scatter | lollipop
+    save_path: "output/figures/ranking.png"
+    figsize:   [10, 6]
+    show_values: true
+    color_map:   "RdYlGn"       # 按贴近度渐变着色
+
+  # 理想解距离散点图
+  distance_scatter:
+    enabled:   true
+    save_path: "output/figures/distance.png"
+    figsize:   [8, 6]
+    annotate:  true              # 在散点旁标注方案名称
+
+  # 热力图（加权归一化矩阵）
+  heatmap:
+    enabled:   true
+    save_path: "output/figures/heatmap.png"
+    figsize:   [10, 7]
+    annot:     true
+    fmt:       ".3f"
+    cmap:      "YlOrRd"
+
+  # 敏感性分析图（需 sensitivity.enabled=true）
+  sensitivity_chart:
+    enabled:   true
+    save_path: "output/figures/sensitivity.png"
+    figsize:   [12, 6]
+
+# ------------------------------------------------------------
+# 10. 性能 / Performance
+# ------------------------------------------------------------
+performance:
+  use_parallel:    false
+  n_jobs:          -1            # -1 = 使用全部 CPU 核心
+  chunk_size:      1000          # 大数据集分块大小
+  memory_limit_mb: 2048
+
+# ------------------------------------------------------------
+# 11. 高级选项 / Advanced
+# ------------------------------------------------------------
+advanced:
+  # 当所有指标熵权相同时的退化处理
+  equal_weight_fallback: true    # true = 均等权重
+
+  # 数值精度
+  decimal_places: 6
+
+  # 结果验证（一致性检查）
+  validation:
+    check_weight_sum:  true      # 权重和应为 1
+    tolerance:         1.0e-6
+
+  # 插件 / 自定义函数扩展（实验性）
+  plugins:
+    enabled:    false
+    custom_normalization: null   # Python 模块路径，如 "mymodule.custom_norm"
+    custom_distance:      null

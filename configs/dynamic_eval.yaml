@@ -1,0 +1,62 @@
+# ============================================================
+# 动态时序综合评价
+# 适用场景：多年度面板数据，需捕捉发展趋势
+# ============================================================
+
+project:
+  name: "基于动态TOPSIS的时序综合评价"
+  description: "按年度独立评价后，通过时间加权汇总得到动态综合排名"
+
+data:
+  file: "data/regional_economy.csv"
+  object_column: "地区"
+  time_column: "年份"            # 时间列（必填）
+  criteria_columns:
+    - "GDP"
+    - "人均GDP"
+    - "财政收入"
+    - "城镇化率"
+    - "居民可支配收入"
+  directions: [max, max, max, max, max]
+
+preprocessing:
+  missing_strategy: median
+  normalization: minmax
+  correlation_check: false
+
+workflow:
+  - step: preprocess
+
+  - step: weight
+    method: entropy
+    params:
+      per_period: true           # 是否每期独立计算权重
+    output_key: "w_entropy"
+
+  - step: evaluate
+    method: dynamic
+    weight_key: "w_entropy"
+    params:
+      base_method: "topsis"      # 单期评价方法
+      time_weight_method: "exponential"  # linear / exponential / entropy
+      # exponential: 越近期权重越大
+      time_decay: 0.8            # 衰减系数 (仅 exponential)
+    output_key: "eval_dynamic"
+
+  - step: sensitivity
+    method: oat
+    eval_key: "eval_dynamic"
+    weight_key: "w_entropy"
+    params:
+      perturbation_range: 0.1
+      perturbation_steps: 20
+
+output:
+  directory: "output/dynamic_eval/"
+  format: [latex, python, figures]
+  language: cn
+  figures:
+    - weights_bar
+    - trend_line
+    - ranking_bar
+    - sensitivity_curve

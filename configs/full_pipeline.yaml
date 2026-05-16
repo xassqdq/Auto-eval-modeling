@@ -1,0 +1,135 @@
+# ============================================================
+# 完整流水线（推荐用于竞赛论文）
+# 预处理 → 相关性分析 → PCA降维(可选) → 组合赋权 → 多模型评价
+# → 模型对比 → 灵敏度分析
+# ============================================================
+
+project:
+  name: "多方法综合评价完整流水线"
+  description: >
+    采用AHP+熵权组合赋权，同时运行TOPSIS、VIKOR、GRA三种评价模型，
+    交叉验证排名一致性，并进行权重灵敏度分析。
+
+data:
+  file: "data/city_innovation.csv"
+  object_column: "城市"
+  criteria_columns:
+    - "R&D投入"
+    - "专利数"
+    - "高新企业数"
+    - "GDP增长率"
+  directions: [max, max, max, max]
+
+preprocessing:
+  missing_strategy: mean
+  outlier_strategy: clip
+  outlier_method: iqr
+  outlier_threshold: 1.5
+  normalization: minmax
+  correlation_check: true
+  correlation_threshold: 0.85
+  auto_reduce: false             # 手动控制是否降维
+
+workflow:
+  # ---- 1. 预处理 ----
+  - step: preprocess
+
+  # ---- 2. PCA 降维（可选，若相关性检查发现高共线性） ----
+  # - step: reduce
+  #   method: pca
+  #   params:
+  #     variance_threshold: 0.85
+  #   output_key: "pca_result"
+
+  # ---- 3. 主观赋权 (AHP) ----
+  - step: weight
+    method: ahp
+    params:
+      judgment_matrix:
+        - [1,     2,     5,     3    ]
+        - [0.5,   1,     3,     2    ]
+        - [0.2,   0.333, 1,     0.5  ]
+        - [0.333, 0.5,   2,     1    ]
+      auto_fix_consistency: true
+    output_key: "w_ahp"
+
+  # ---- 4. 客观赋权 (熵权法) ----
+  - step: weight
+    method: entropy
+    output_key: "w_entropy"
+
+  # ---- 5. 客观赋权 (CRITIC) ----
+  - step: weight
+    method: critic
+    output_key: "w_critic"
+
+  # ---- 6. 组合赋权 (博弈论: AHP + 熵权) ----
+  - step: combine
+    method: game_theory
+    sources: ["w_ahp", "w_entropy"]
+    output_key: "w_combined"
+
+  # ---- 7. TOPSIS 评价 ----
+  - step: evaluate
+    method: topsis
+    weight_key: "w_combined"
+    output_key: "eval_topsis"
+
+  # ---- 8. VIKOR 评价 ----
+  - step: evaluate
+    method: vikor
+    weight_key: "w_combined"
+    params:
+      v: 0.5
+    output_key: "eval_vikor"
+
+  # ---- 9. 灰色关联评价 ----
+  - step: evaluate
+    method: gra
+    weight_key: "w_combined"
+    params:
+      rho: 0.5
+    output_key: "eval_gra"
+
+  # ---- 10. 多模型排名一致性对比 ----
+  - step: rank_compare
+    eval_keys: ["eval_topsis", "eval_vikor", "eval_gra"]
+    params:
+      metrics: [kendall_tau, spearman_rho]
+
+  # ---- 11. 灵敏度分析 ----
+  - step: sensitivity
+    method: oat
+    eval_key: "eval_topsis"
+    weight_key: "w_combined"
+    params:
+      perturbation_range: 0.1
+      perturbation_steps: 20
+
+output:
+  directory: "output/full_pipeline/"
+  format: [latex, python, figures, excel, json]
+  language: cn
+  latex_template: cn_competition
+  figure_format: png
+  figure_dpi: 300
+  figures:
+    - weights_bar
+    - judgment_heatmap
+    - correlation_heatmap
+    - ranking_bar
+    - radar_chart
+    - sensitivity_curve
+    - score_distribution
+  code_style:
+    add_comments: true
+    add_docstrings: true
+    standalone: true
+
+advanced:
+  random_seed: 42
+  float_precision: 6
+  parallel: false
+  verbose: true
+  log_file: "output/full_pipeline/logs/run.log"
+  save_intermediate: true

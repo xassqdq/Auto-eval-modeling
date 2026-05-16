@@ -1,0 +1,60 @@
+# ============================================================
+# PCA 降维 + 综合评分
+# 适用场景：指标数量多且高度相关，需先降维再评价
+# ============================================================
+
+project:
+  name: "基于主成分分析的综合评分"
+  description: "PCA提取主成分消除共线性，以方差贡献率加权计算综合得分"
+
+data:
+  file: "data/regional_economy.csv"
+  object_column: "地区"
+  criteria_columns:
+    - "GDP"
+    - "人均GDP"
+    - "财政收入"
+    - "固定资产投资"
+    - "社会消费品零售额"
+    - "进出口总额"
+    - "城镇化率"
+    - "居民可支配收入"
+  directions: [max, max, max, max, max, max, max, max]
+
+preprocessing:
+  missing_strategy: mean
+  outlier_strategy: clip
+  outlier_method: zscore
+  outlier_threshold: 3.0
+  normalization: zscore          # PCA 前通常 Z-score 标准化
+  correlation_check: true
+  correlation_threshold: 0.8
+
+workflow:
+  - step: preprocess
+
+  - step: reduce
+    method: pca
+    params:
+      variance_threshold: 0.85   # 累计方差贡献率阈值
+      max_components: null        # 不限制最大主成分数（由阈值决定）
+    output_key: "pca_result"
+
+  # PCA 综合评分：以方差贡献率为权重加权主成分得分
+  - step: evaluate
+    method: topsis
+    weight_key: "pca_weight"     # 自动从 pca_result 提取方差贡献率作权重
+    params:
+      use_pca_scores: true       # 使用主成分得分而非原始数据
+    output_key: "eval_pca_topsis"
+
+output:
+  directory: "output/pca_evaluation/"
+  format: [latex, python, figures]
+  language: cn
+  figures:
+    - scree_plot
+    - loading_plot
+    - correlation_heatmap
+    - ranking_bar
+    - score_distribution
